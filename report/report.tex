@@ -1,0 +1,483 @@
+\documentclass[]{IEEEtran}
+
+% Your packages go here
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+%listings settings
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{codeblue}{rgb}{0,0.8,0.99}
+\definecolor{codeyellow}{rgb}{0.6,0.5,0}
+
+
+\lstdefinestyle{vim_like}{
+  backgroundcolor=\color{backcolour},   
+  commentstyle=\color{codegreen},
+  keywordstyle=\color{codeyellow},
+  numberstyle=\tiny\color{codegray},
+  stringstyle=\color{codepurple},
+  basicstyle=\ttfamily\footnotesize,
+  breakatwhitespace=false,         
+  breaklines=true,                 
+  captionpos=b,                    
+  keepspaces=true,                 
+  numbers=left,                    
+  numbersep=5pt,                  
+  showspaces=false,                
+  showstringspaces=false,
+  showtabs=false,                  
+  tabsize=2
+}
+\lstset{style=vim_like}
+
+\markboth{MC949/MO446 Computer Vision}{}
+
+\begin{document}
+  \title{Project 1 - ASCII Art}
+  \author{Iury Cleveston (RA 230216), Leonardo Rezende (RA 262953) and Thales Oliveira (RA 148051)
+    \thanks{ra230216@students.ic.unicamp.br, ra262953@students.ic.unicamp.br, ra148051@students.ic.unicamp.br}
+  }
+  \maketitle
+  
+  \begin{abstract}
+    In this project, we were given the task of creating the ASCII art version of images in grayscale and color. To fulfill the requirements, the algorithm implemented deals with filters to resize the input image and to define the colors of the printed characters. The filters implemented in this work use our implementation of convolution operation when needed. We were able to generate ASCII images in grayscale and color, and the pros and cons of our implementation are explained in this report.
+  \end{abstract}
+  
+\section{Introduction}
+This work, developed by Group 8 of Computer Vision Course (2nd Semester/2019), has the goal of generating ASCII art versions of input images. In this sense, it is desired to create a output image that approximates the most an input image by printing ASCII characters to represent the original content. For the grayscale version, the color of the characters is by default black, in the white background. For the colored version, the colors of the characters are defined by processing the original image and executing a median or Gaussian filter to obtain the color, in a black background. The characters to be printed in the image are pre-defined by a set of 4 different alphabets, which will be listed in the next sections. Also, the number of characters to be placed on the image by line and by column are inputs of the function. Therefore, we generate an ASCII image based on the original image, the alphabet, and the output characters' dimension. The following sections explain the algorithm implemented with its auxiliar functions, and the tests applied to the code.  
+
+\section{Implemented Algorithm}
+In this section, it is presented the implemented algorithm in this project. The code is distributed into four Python files, named \textbf{asciify.py}, \textbf{convolution.py}, \textbf{main.py} and \textbf{test.py}. The \textbf{asciify.py} file contains the Asciify class, which implements the main functions (\textbf{print\_ascii\_image\_mono}, \textbf{print\_ascii\_image\_colored}) and auxiliary ones (such as \textbf{resize}, \textbf{median\_filter}, \textbf{image\_to\_chars}, etc). The \textbf{convolution.py} file contains the Convolution class, which implements our version of convolution for images (\textbf{convolute2d} function) and also a function that calls the convolution implemented by OpenCV (for benchmarking our implementation). The \textbf{test.py} file benchmarks our convolution and the one implemented by OpenCV, using different images and kernels of different size. The \textbf{main.py} file does the calls to the asciify printing algorithms, using different images, alphabets and character output resolutions. The following subsections explains main implementation decisions done in key parts of the project.
+
+
+\subsection{Patch ASCIIfy}
+In order to adapt the images to the output in terms of number of characters, a process of resizing the image was applied. After the resizing (up or downsample, depending on the image's original dimensions and the number of characters output resolution), the image has the exact output dimensions in terms of character resolution.  Then, we are able to convert every resized pixel to a specific character in the given alphabet. With this conversion, the grayscale version of the image can be obtained. Using the set of converted characters obtained before, we can calculate the color of each character by doing the resize in the original image using a gaussian filter or a median filter, in case the original image was downsampled. If the image was upsampled, the color of the character can be obtained directly from the values of the resized image. The following describes the work done.
+
+
+\subsubsection{Resizing the input image}
+
+ As the ASCII image has an specified shape, we need to resize the input image to that shape. Many resizing algorithms were suggested, but as we have implemented a convolution function, an resizing approach that could involve some convolution was chosen.
+The character's output resolution is only taken into consideration for the number of characters printed per line, in order to maintain the aspect ratio of each image, so the final image doesn't get distorted. In other words, the resize produces an image with character resolution pixels in the width and a proportion based on the original image dimensions and the character resolution pixels in the height.
+ More specifically, a nearest neighbor interpolation was implemented. This approach creates a new image and calculate the relation between the new size and the original image's size. Then, each pixel of the image receives the corresponding pixel on the original one. If the goal is to increase the image dimensions, some of the pixels will be get more times than others. If it is to reduce the image, some of them will be skipped. On Listing \ref{code:nninterpolation} is the code that makes the interpolation.
+ 
+ \begin{lstlisting}[language=Python, caption={Nearest neighbor interpolation script}, label={code:nninterpolation}]
+def resize(img, shape):
+    ...
+    # build the new image with shape intended
+    result = np.zeros(shape[0]*shape[1]*3).reshape(shape[0], shape[1], 3)
+
+    # get y and x ratios to calculate pixels positions to take
+    y_ratio = shape[0]/img.shape[0]
+    x_ratio = shape[1]/img.shape[1]
+
+    for y in range(shape[0]):
+        for x in range(shape[1]):
+            result[y,x] = img[int(y/y_ratio),int(x/x_ratio)]
+
+    return result.astype(np.uint8)
+\end{lstlisting}
+ 
+ On down-sampling, we do not want lose much data. For this, blurring the input image distributes a bit of each pixel to its neighbors. This way, when some pixels are skipped, the resulted image is still going to get at least a fraction of the original's information.
+ 
+ On up-sampling, as the interpolation are not linear (this is, we do not estimate some value between other pixels), aliasing normally gets more evident. For this, a smaller blurring should reduce this aliasing in exchange to losing some details, to achieve a better resulting image.
+ 
+ A median filter was implemented for downsampling, as part of the project's requirement. As it is non-linear, the convolution function could not be used. For a specific kernel size, the image is padded and then each pixel of the image is modified to the median of its neighbors. The median filter works as a smoothing filter, and it is also a good choice for noise removal.
+ The main routine of the function is shown in listing \ref{code:median}. It uses the median function of the numpy package to calculate the median in the window.
+ 
+  \begin{lstlisting}[language=Python, caption={Main routine of median filter function}, label={code:median}]
+def median_filter(self, colored_img, kernel_shape, border_strategy=0):    
+    ...
+    #apply the median filter for the 3 channels seperately
+    for chan in range(filtered_img.shape[2]):
+        for j in range(filtered_img.shape[0]):
+            for i in range(filtered_img.shape[1]):
+                filtered_img[j][i][chan] = np.median(
+                    img_padded[j:j+kernel_shape[1], i:i+kernel_shape[0], chan])
+
+    return filtered_img
+\end{lstlisting}
+ 
+ We used convolution operation to apply the Gaussian filter to the image when needed. The Gaussian had width and height equals to 3 when up-sampling, and 5 when down-sampling. We used a function showed on Listing \ref{code:pascal} to generate a pascal based array and then generated the kernel by multiplying this array with its transposed form. Then, this kernel as used to blur the image before down-sampling or to blur the result after ups-ampling.
+ \begin{lstlisting}[language=Python, caption={Pascal array generator to generate Gaussian masks}, label={code:pascal}]
+def pascal(n):
+    k = np.zeros((n,n))
+    k[0,0] = 1
+    for x in range(1,n):
+        k[x,0] = k[x-1,0]
+        for y in range(1,x+1):
+            k[x,y] = k[x-1,y-1] + k[x-1,y]
+    return np.array([k[n-1]])
+\end{lstlisting}
+On Figure~\ref{fig:resize-compare} we can see the difference between the results using OpenCV cubic interpolation and our nearest neighbor with Gaussian filter. On the other side, our upsampling approach achieved a less noisy result, while the down-sampling achieved as good as the Opencv's one.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{img/o-cv2-a.png}
+    \includegraphics[width=0.4\hsize]{img/o-nninterpo-a.png}
+    \includegraphics[width=0.4\hsize]{img/o-cv2-b.png}
+    \includegraphics[width=0.4\hsize]{img/o-nninterpo-b.png}
+    \caption{Image results from resizing. Left images: 30x30 and 700x700 images reduced with Opencv's cubic interpolation. Right images: 30x30 and 700x700 images reduced with our nearest neighbor and Gaussian blur approach}
+    \label{fig:resize-compare}
+\end{figure}
+
+
+\subsubsection{Converting pixel values to characters}
+After the image is resized to our needs, a simple scale conversion function is implemented to convert from pixel values in the range of $[0, 255]$ to the range of the alphabet. Listing \ref{code:img_to_chars} presents the implementation.
+ \begin{lstlisting}[language=Python, caption={Pixel to character scale converter}, label={code:img_to_chars}]
+def image_to_chars(self, image, alphabet):
+    #convert each pixel value to a letter in alphabet, based on bucket size
+    bucket_size = 256 / (len(alphabet))
+    pixels = list(np.asarray(image).flatten())
+    chars = [alphabet[int(value/bucket_size)] for value in pixels]
+    return ''.join(chars)
+\end{lstlisting}
+Table \ref{table:alphabet} lists the alphabets used in our tests.
+
+\begin{table}[h!]
+\centering
+\begin{center}
+\begin{tabular}{ |c|c| } 
+ \hline
+ Alphabets & Description \\
+ \hline
+ {[}'\#', '@', '\%', '=', '*', ':', '-', '.', ' '{]} & Default (required) \\ 
+ \hline
+ {[}'W', 'B', 'H', 'T', 'L', 'I', '.', ' '{]}  & Uppercase letters  \\
+ \hline
+ {[}'8', '6', '2', '1', '+', '-', '.', ' '{]} & Mathematical  \\ 
+ \hline
+ ['\}', ']', '|', '!', '"', ':', '.', ' '] & Vertical \\
+ \hline
+ ['\#', '=', '"', '\~','-', '\_', '.', ' '] & Horizontal \\
+ \hline
+\end{tabular}
+ \label{table:alphabet}
+ \caption{Alphabets used in experiments}
+\end{center}
+\end{table}
+
+\subsubsection{Generating monochrome ASCII image}
+To generate the monochrome image, giving the converted characters and the output character dimension, it is up to writing each character in black color in an OpenCV image using the \textbf{cv2.putText} function, in a white background. To generate readable characters, each one occupies a space of 25 x 25 pixels in the image. Then the characters are printed equally-spaced. The listing \ref{code:mono-print} presents the implementation.
+
+ \begin{lstlisting}[language=Python, caption={Monochrome ASCII image generator}, label={code:mono-print}]
+    def print_ascii_image_mono(self, ascii_chars, shape, font_scale):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # path sizes are used to draw the text into equally spaced positions in image
+        path_size = 25
+        newShape = np.asarray([shape[0], shape[1]])*path_size # 25 pixel for each char
+        # Initialize mono ascii image with given shape and with white background
+        mono_image = np.full(newShape, 255, np.uint8)
+        # Draw the text (mono image)
+        k = 0
+        for j in range(0, shape[0]):
+            for i in range(0, shape[1]):
+                cv2.putText(mono_image, ascii_chars[k], ((i)*path_size, (j + 1)*path_size),
+                            font, font_scale, (0, 0, 0), 1)
+                k += 1
+        return mono_image
+\end{lstlisting}
+
+\subsubsection{Generating colored ASCII image}
+For the colored ASCII image, the process is similar to the monochrome. The difference is that we print colored characters in a black background. The color information is obtained before, as part of the resize process. The listing \ref{code:color-print} shows the differences in implementation (when compared to listing \ref{code:mono-print}.
+
+ \begin{lstlisting}[language=Python, caption={Colored ASCII image generator}, label={code:color-print}]
+    def print_ascii_image_colored(self, ascii_chars, original_colored_image, shape, font_scale):
+        ...
+        color_image = np.full((new_shape[0], new_shape[1], 3), 0, np.uint8)
+        k = 0
+        # Draw the text (colored image)
+        for j in range(0, shape[0]):
+            for i in range(0, shape[1]):
+                color = tuple([int(x) for x in original_colored_image[j][i]])
+                cv2.putText(color_image, ascii_chars[k],
+                            ((i)*path_size, (j + 1)*path_size), font, font_scale, color, 1)
+                k += 1
+
+        return color_image
+\end{lstlisting}
+
+
+\subsection{Implemented Convolution}
+
+The convolution operation was implemented in Python using loops. The method called \textbf{convolute2d} receives as input an RBG or grayscale image, the algorithm can differentiate between each type by checking the number of channels that the input image has. One important aspect when performing convolution operations is to pay attention to the border of the image, to keep the same dimension as the input one. The border can be treated by using a padding implementation, which enlarges the image momentarily so that the convolution can be performed.
+
+In this work, the border treatment was performed through the reflection of the pixels near to the border, thus, we could keep the same dimension of the original image. A reflection method is an interesting approach because it uses the pixels value near to where the calculation will be performed, therefore, the results are more accurate than other treatment methods, as shown in Listing~\ref{code:convolution}.
+
+ \begin{lstlisting}[language=Python, caption={Convolution algorithm for Grayscale images with padding treated using reflection.}, label={code:convolution}]
+def convolute2d(self, img, kernel):
+    kernel_w, kernel_h = kernel.shape
+    img_output = np.zeros_like(img)
+    img_padded = np.pad(img, ((kernel_w//2, kernel_h//2), (kernel_w//2, kernel_h//2), (0, 0)), 'reflect')
+    
+    for j in range(img_output.shape[0]):
+        for i in range(img_output.shape[1]):
+            conv_result = (img_padded[j:j + kernel_h, i:i + kernel_w] * kernel).sum()
+            if conv_result < 0:
+                img_output[j][i] = 0
+            elif conv_result > 255:
+                img_output[j][i] = 255
+            else:
+                img_output[j][i] = np.around(conv_result)
+                
+    return img_output
+\end{lstlisting}
+
+After the implementation of this algorithm, validations were performed by comparing our algorithm with the convolution implemented by OpenCv. The tests consisted of applying three kernels of different sizes and properties. The first kernel was a 3x3 high-pass filter. The second one was a 5x5 Gaussian low-pass filter. And the last kernel was a 7x7 low-pass filter.
+
+Each filter was applied to an RGB and a grayscale image, for each test the runtime was collected as shown in Table~\ref{table-convolution}.
+
+\begin{table}[h!]
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{}         & \multicolumn{2}{c|}{\textbf{Runtime (seconds)}}                                \\ \hline
+\textbf{Test}     & \multicolumn{1}{l|}{Our convolution} & \multicolumn{1}{l|}{OpenCv convolution} \\ \hline
+Kernel 3x3 - RGB  & 8.8492                               & 0.0019                                  \\ \hline
+Kernel 5x5 - RGB  & 11.6061                              & 0.0041                                  \\ \hline
+Kernel 7x7 - RGB  & 11.1194                              & 0.0087                                  \\ \hline
+Kernel 3x3 - Gray & 2.9540                               & 0.0005                                  \\ \hline
+Kernel 5x5 - Gray & 3.7795                               & 0.0012                                  \\ \hline
+Kernel 7x7 - Gray & 3.4192                               & 0.0025                                  \\ \hline
+\end{tabular}
+\caption{Convolution Execution Benchmark}
+\label{table-convolution}
+\end{table}
+
+It is observed that our implementation, due to the use of Python loops, was slower than the OpenCv implementation. This behavior was expected since OpenCv convolution is implemented in C++ and Python is just a wrapper for the calls.
+
+The results were very similar to each other. Visually it is not possible to observe any difference between the images generated by our convolution and the convolution implemented by OpenCv. Some results are shown in Figures~\ref{fig:convolution-1} and \ref{fig:convolution-2}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/convolutions-test/grayscale/o-3_convolution_opencv.png}
+    \includegraphics[width=0.4\hsize]{../output/convolutions-test/grayscale/o-3_convolution_opencv.png}
+    \caption{Grayscale convolution using 3x3 high-pass filter. a) Our convolution. b) OpenCv convolution.}
+    \label{fig:convolution-1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/convolutions-test/rgb/o-7_convolution_opencv.png}
+    \includegraphics[width=0.4\hsize]{../output/convolutions-test/rgb/o-o-7_convolution_opencv.png}
+    \caption{RGB convolution using 7x7 low-pass filter. a) Our convolution. b) OpenCv convolution.}
+    \label{fig:convolution-2}
+\end{figure}
+
+\section{Experiments}
+The \textbf{main.py} file executes our test pipeline. The idea is the following: for each input image, for each alphabet, for each output character resolution, generate the monochrome, colored using median filter and colored using Gaussian filter images.
+The output character resolution set was chosen to down and upsample some of the input images. The set is given in table \ref{table:resolutions}
+
+\begin{table}[H]
+\centering
+\begin{center}
+\begin{tabular}{ |c| } 
+ \hline
+ Output character resolution (characters per line)\\
+ \hline
+ 32 \\ 
+ \hline
+ 100  \\
+ \hline
+\end{tabular}
+ \label{table:resolutions}
+ \caption{Output character resolutions used in experiments.}
+\end{center}
+\end{table}
+
+The input images chosen are labeled as i-1-0 to i-1-5. Their general information is described in the Tables~\ref{table:inputs-1} and \ref{table:inputs-2}. They are also shown in Figure~\ref{fig:input-images}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |c|c|c| } 
+ \hline
+ Label & Dimensions (pixels) & Sampling Type\\
+ \hline
+ i-1-0 & 750 x 563 & Downsample\\  
+ \hline
+ i-1-1 & 600 x 366 & Downsample\\
+ \hline
+ i-1-2 & 1200 x 1000 & Downsample\\
+ \hline
+ i-1-3 & 612 x 408 & Downsample\\
+ \hline
+ i-1-4 & 32 x 48 & Upsample \\
+ \hline
+ i-1-5 & 32 x 32 & Upsample\\
+ \hline
+\end{tabular}
+ \label{table:inputs-1}
+ \caption{Input characteristics (part 1).}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |c|c| } 
+ \hline
+ Label & General Description\\
+ \hline
+ i-1-0 & New York City view. Low variety of colors\\  
+ \hline
+ i-1-1 & Bear in the wild. Fading background\\
+ \hline
+ i-1-2 & Einstein. Detailed features in face \\
+ \hline
+ i-1-3 & Detailed flower. High variety of colors \\
+ \hline
+ i-1-4 & Monalisa. Small image. low variety of colors \\
+ \hline
+ i-1-5 & Bonobo. Small squared image \\
+ \hline
+\end{tabular}
+ \label{table:inputs-2}
+ \caption{Input characteristics (part 2).}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../input/i-1-0.jpg}
+    \includegraphics[width=0.4\hsize]{../input/i-1-1.jpg}
+    \includegraphics[width=0.4\hsize]{../input/i-1-2.jpg}
+    \includegraphics[width=0.4\hsize]{../input/i-1-3.jpg}
+    \includegraphics[width=0.4\hsize]{../input/i-1-4.jpg}
+    \includegraphics[width=0.4\hsize]{../input/i-1-5.jpg}
+    \caption{Input images used in experiments. a) i-1-0 (NYC). b) i-1-1 (Bear) c) i-1-2 (Einstein) d) i-1-3 (Flower) e) i-1-4 (Monalisa) f) i-1-5 (Bonobo)}
+    \label{fig:input-images}
+\end{figure}
+
+As the number of output images generated is high, they are grouped by folders in the specific way: Inside the \textbf{output} folder, the images that are downsampled and upsampled are separated. Inside each sampling folder (\textbf{upsampling} and \textbf{downsampling}), each \textbf{convolution-\{index\}} represents the operation for one specific input image. Inside of it there are two folders: \textbf{size-32} and \textbf{size-100}, indicading respective resolutions. Inside each resolution folder, there are the \textbf{grayscale}, \textbf{rgb-gaussian} and \textbf{rgb-median}. Inside each case, there are the images printed for the 5 alphabets, in the format \textbf{o-\{index\}}, where the index indicate the alphabet, in the same order as table \ref{table:alphabet}.  
+
+\section{Discussion}
+
+This section is organized in two parts. The first part analyses the result obtained using grayscale images with 4 different alphabets. The second part performs an analysis of the results obtained using color images.
+
+\subsection{Grayscale Images}
+
+The downsampling technique was applied to four grayscale images. Each image has been converted to 32- and 100-character output size. Also, these final images were represented using 4 different alphabets to provide a better insight into how character choice influenced the quality of the final image.
+
+In this subsection, we present an execution for The New York image, using four different types of alphabets with a 100-character output size, as shown in Figure~\ref{fig:grayscale-nyc}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-2.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-3.jpg}
+    \caption{The New York output images with 100-characteres output size using different alphabets. a) Default alphabet. b) Uppercase alphabet. c) Mathematical alphabet. d)
+    Vertical alphabet}
+    \label{fig:grayscale-nyc}
+\end{figure}
+
+It is observed that the used alphabet considerably affected the quality of the final image. The vertical alphabet had problems filling the area, making the representation less visually significant, while the other alphabets were able to present a better filling of the area. It was also observed that the upper letter alphabet has characters that represent well the texture of buildings presented in the New York image.
+
+The next execution consisted in applying an upsampling technique to two low-resolution images: Monaliza and Baboon. This procedure followed the same steps as the previous one, a grayscale image was upsampled for the desired output dimensions, which in this case was 100 characters. In this subsection, we will show the final Monaliza image for 4 different alphabets, as presented in Figure~\ref{fig:grayscale-monalisa}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-2.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-3.jpg}
+    \caption{Monaliza output images with 100-characters output size using different alphabets. a) Default alphabet. b) Uppercase alphabet. c) Mathematical alphabet. d)
+    Vertical alphabet}
+    \label{fig:grayscale-monalisa}
+\end{figure}
+
+In both results, the quality was proportional to the number of characters in the representation of the final image. That is, the images that were converted to the output with 100 characters had higher quality than the others. This behavior was expected as more characters have finer control of quantization levels.
+
+
+\subsection{RGB Images}
+
+For the RGB images, we can do similar comparisons to the mono case, except from the fact that besides the alphabet changing, the different resolutions and the up/downsample cases, we also have to analyze the difference of color picking with the gaussian and median filter. 
+\\For the difference between filters, we have some cases with output resolution 32 in figure \ref{fig:colored-filters-32} and for resolution 100 in figure \ref{fig:colored-filters-100}. As we can observe in the images we have only punctual differences in the images, indicating that both filters work similarly in general. We can also notice that the colors represented in the characters fit well the ones from the original image, validating our resize operations for the three channels. The image gets closer to the original when the character output is increased.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-32/rgb-gaussian/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-32/rgb-median/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-32/rgb-gaussian/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-32/rgb-median/o-0.jpg}
+    \caption{Output images with 32 characters to compare Gaussian and median filters, in same alphabet, for downsampled images. a) Gaussian of input image i-1-0. b) Median of input image i-1-0. c) Gaussian of input image i-1-3. d) Median of input image i-1-3}
+    \label{fig:colored-filters-32}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-median/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-median/o-1.jpg}
+    \caption{Output images with 100 characters to compare Gaussian and median filters, in same alphabet, for downsampled images. a) Gaussian of input image i-1-1. b) Median of input image i-1-1. c) Gaussian of input image i-1-2. d) Median of input image i-1-2}
+    \label{fig:colored-filters-100}
+\end{figure}
+
+For upsampled images, the median is not executed in this case. So, even though the method is called, the output images for both cases are the same. Image \ref{fig:upsample-median} shows that case, for 32 characters resolution of i-4-0.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/upsampling/convolution-0/size-32/rgb-gaussian/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/upsampling/convolution-0/size-32/rgb-median/o-1.jpg}
+    \caption{Output images with 32 characters to compare Gaussian and median filters for upsampled images, in same alphabet. a) Gaussian of input image i-1-4. b) Median of input image i-1-4.}
+    \label{fig:colored-filters-100}
+\end{figure}
+
+When analyzing the difference between alphabets, we can see that, depending on the format of the features in the image, some alphabets look better than others. For example, as showed in figure \ref{fig:alphabets-colored-32}, alphabets with good filling per character(like the Default, Upper case and Mathematical) represents better the image than the ones that represents horizontal or vertical features. For other example, like the one in \ref{fig:alphabets-colored-100}, the Vertical alphabet is a good fit. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-1/size-100/rgb-gaussian/o-2.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-1/size-100/rgb-gaussian/o-3.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-0.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-4.jpg}
+    \caption{Output images with 32 characters to compare different alphabets. a) Gaussian of input image i-1-1, alphabet 2. b) Gaussian of input image i-1-1, alphabet 3. c) Gaussian of input image i-1-3, alphabet 0. d) Gaussian of input image i-1-3, alphabet 4.}
+    \label{fig:alphabets-colored-32}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-3.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-0.jpg}
+    \caption{Output images with 100 characters to compare different alphabets. a) Gaussian of input image i-1-0, alphabet 3. b) Gaussian of input image i-1-0, alphabet 0.}
+    \label{fig:alphabets-colored-100}
+\end{figure}
+
+\subsection{Comparison among grayscale, Gaussian and median filters}
+
+This subsection presents a comparison between different versions of the Bear and Einstein images, using grayscale, Gaussian and median filters for color extraction. Results for the Bear image are shown in Figure~\ref{fig:bear-100}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-median/o-1.jpg}
+    \caption{Bear output images with 100 characters to compare grayscale,  Gaussian and median filters for color extraction in the same alphabet. a) Grayscale. b) Gaussian color. c) Median color.}
+    \label{fig:bear-100}
+\end{figure}
+
+Also, we present a visual comparison for the Einstein image, as shown in Figure~\ref{fig:einstein-100}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/grayscale/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/rgb-gaussian/o-1.jpg}
+    \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/rgb-median/o-1.jpg}
+    \caption{Einstein output images with 100 characters to compare grayscale,  Gaussian and median filters for color extraction in the same alphabet. a) Grayscale. b) Gaussian color. c) Median color.}
+    \label{fig:einstein-100}
+\end{figure}
+
+\section{Conclusion}
+ 
+The application of conversion techniques from colorful or grayscale images to images composed only of ASCII characters allowed us to understand some image manipulation methods such as downsample and upsample. Each of these methods is implemented by applying specific filters to reduce or increase the image dimensions.
+
+While doing this work, the use of different alphabets provided insight that there are combinations of characters best suited for some types of images, so there is no perfect alphabet to represent all kinds of images. Therefore, the alphabet must be determined from the requirements of the application.
+
+The use of several images of different sizes allowed us to observe differences in terms of performance, the execution of the whole pipeline was extremely slow, mainly due to the use of our convolution operation.
+ 
+Also, the execution of this work provided a better understanding of how the convolution operation is implemented since we could not use it from any package. The application of convolution with high-pass and low-pass filters allow us to understand how the signal frequency impacts the image result, either in noise attenuation or edge detection.
+
+  
+
+\end{document}
