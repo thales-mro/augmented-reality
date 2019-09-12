@@ -57,7 +57,7 @@ class AR:
         # For each frame
         while success:
             
-            frame = self._generate_frame(image)
+            frame = self._generate_frame(image, operation=1)
                         
             # Add the processed frame to the list
             if frame is not None:
@@ -92,7 +92,7 @@ class AR:
         video_out.release() 
         
         
-    def _generate_frame(self, frame):
+    def _generate_frame(self, frame, operation):
         """
         It generates a newframe based on source and target images
 
@@ -116,10 +116,20 @@ class AR:
             
             # Find the homography matrix
             H, _ = cv2.findHomography(target_points.reshape(-1, 1, 2), frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
-
-            # Draw the 20 matches
-            return cv2.drawMatches(self.target, self.keypoints_target, frame, keypoints_frame, matches[:20], 0, flags=2)
-           
+            
+             # Find the rectangle around the target image
+            target_edges = np.float32([[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1], [self.target_h-1, 0]]).reshape(-1, 1, 2)
+            
+            # Project the edges on the image using the homography matrix
+            target_edges = np.int32(cv2.perspectiveTransform(target_edges, H))
+        
+            if operation == 0:
+                # Draw the 20 matches
+                return cv2.drawMatches(self.target, self.keypoints_target, frame, keypoints_frame, matches[:20], 0, flags=2)
+            elif operation == 1: 
+                # Draw the rectangle around the target image
+                return cv2.polylines(frame, [target_edges], True, 255, 3, cv2.LINE_AA)  
+        
         else:
             return frame
 
