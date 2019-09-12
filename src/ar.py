@@ -53,13 +53,18 @@ class AR:
         
         # For each frame
         while success:
-        
-            processedFrames.append(image)
-                
-            cv2.imshow('current_frame', image)
             
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            frame = self._generate_frame(image, operation)
+                        
+            # Add the processed frame to the list
+            if frame is not None:
+        
+                processedFrames.append(frame)
+                
+                #cv2.imshow('current_frame', image)
+                
+                #if cv2.waitKey(1) & 0xFF == ord('q'):
+                #    break
                 
             # Read the next frame
             success, image = video_capture.read()
@@ -84,4 +89,20 @@ class AR:
         video_out.release() 
         
         
+    def _generate_frame(self, frame):
+        """
+        It generates a newframe based on source and target images
+
+        Keyword arguments:
+        """
+        
+        # Compute keypoints and descriptors of the target frame
+        keypoints_frame, descriptors_frame = self.orb.detectAndCompute(frame, None)
+
+        # Find the matches between the target and the current frame
+        matches = self.bfMatcher.match(self.descriptors_target, descriptors_frame)
+
+        # Sort based on distance
+        matches = sorted(matches, key=lambda x: x.distance)
+
 
