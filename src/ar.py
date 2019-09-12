@@ -31,6 +31,9 @@ class AR:
         # Compute keypoints and descriptors of the target image
         self.keypoints_target, self.descriptors_target = self.orb.detectAndCompute(self.target, None)
         
+        # Resize the source image to the target's size
+        self.source = cv2.resize(self.source, (self.target_h, self.target_w), interpolation = cv2.INTER_AREA)
+
       
     def execute_video(self, videoPath):
         """
