@@ -13,7 +13,9 @@ class AR:
 
     def __init__(self, targetPath, sourcePath):
         
-        
+        # Create ORB detector
+        self.orb = cv2.ORB_create()
+
 
       
     def execute_video(self, videoPath):
