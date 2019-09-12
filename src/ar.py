@@ -15,7 +15,19 @@ class AR:
         
         # Create ORB detector
         self.orb = cv2.ORB_create()
-
+        
+        # Read the target image
+        self.target = cv2.imread(targetPath)
+        
+        # Get the target dimensions
+        self.target_w, self.target_h, _ = self.target.shape
+        
+        # Read the source image
+        self.source =  cv2.imread(sourcePath)
+        
+        # Get the source dimensions
+        self.source_w, self.source_h, _ = self.source.shape
+        
 
       
     def execute_video(self, videoPath):
