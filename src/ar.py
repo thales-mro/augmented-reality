@@ -105,4 +105,15 @@ class AR:
         # Sort based on distance
         matches = sorted(matches, key=lambda x: x.distance)
 
+        if len(matches) > 10:
+            
+            # Get the keypoints for each match
+            target_points = np.float32([self.keypoints_target[m.queryIdx].pt for m in matches])
+            frame_points = np.float32([keypoints_frame[m.trainIdx].pt for m in matches])
+            
+            # Find the homography matrix
+            H, _ = cv2.findHomography(target_points.reshape(-1, 1, 2), frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
+           
+        else:
+            return frame
 
