@@ -28,7 +28,9 @@ class AR:
         # Get the source dimensions
         self.source_w, self.source_h, _ = self.source.shape
         
-
+        # Compute keypoints and descriptors of the target image
+        self.keypoints_target, self.descriptors_target = self.orb.detectAndCompute(self.target, None)
+        
       
     def execute_video(self, videoPath):
         """
