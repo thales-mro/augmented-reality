@@ -11,8 +11,10 @@ class AR:
 
        """
 
-    def __init__(self):
-        pass
+    def __init__(self, targetPath, sourcePath):
+        
+        
+
       
     def execute_video(self, videoPath):
         """

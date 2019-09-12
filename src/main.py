@@ -8,7 +8,7 @@ def main():
     """
 
     # Create the Augmented Reality object
-    ar = AR()
+    ar = AR('input/i-2.jpg', 'input/i-1.jpg')
 
     # Generate the image
     ar.execute_video("input/i-0.mp4")
