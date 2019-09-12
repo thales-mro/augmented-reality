@@ -16,6 +16,9 @@ class AR:
         # Create ORB detector
         self.orb = cv2.ORB_create()
         
+        # Create BFMatcher
+        self.bfMatcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        
         # Read the target image
         self.target = cv2.imread(targetPath)
         
@@ -54,17 +57,17 @@ class AR:
         # For each frame
         while success:
             
-            frame = self._generate_frame(image, operation)
+            frame = self._generate_frame(image)
                         
             # Add the processed frame to the list
             if frame is not None:
         
                 processedFrames.append(frame)
                 
-                #cv2.imshow('current_frame', image)
+                cv2.imshow('current_frame', frame)
                 
-                #if cv2.waitKey(1) & 0xFF == ord('q'):
-                #    break
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
                 
             # Read the next frame
             success, image = video_capture.read()
@@ -113,6 +116,9 @@ class AR:
             
             # Find the homography matrix
             H, _ = cv2.findHomography(target_points.reshape(-1, 1, 2), frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
+
+            # Draw the 20 matches
+            return cv2.drawMatches(self.target, self.keypoints_target, frame, keypoints_frame, matches[:20], 0, flags=2)
            
         else:
             return frame
