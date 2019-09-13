@@ -57,7 +57,7 @@ class AR:
         # For each frame
         while success:
             
-            frame = self._generate_frame(image, operation=1)
+            frame = self._generate_frame(image, operation=2)
                         
             # Add the processed frame to the list
             if frame is not None:
@@ -129,6 +129,19 @@ class AR:
             elif operation == 1: 
                 # Draw the rectangle around the target image
                 return cv2.polylines(frame, [target_edges], True, 255, 3, cv2.LINE_AA)  
+            
+            elif operation == 2 and H is not None:
+
+                # Warp the source image
+                s = cv2.warpPerspective(self.source, H, (frame.shape[1], frame.shape[0]))
+
+                # Create a convex cover
+                filler = cv2.convexHull(target_edges)
+
+                # Fill it with white color
+                filledSource = cv2.fillConvexPoly(s.copy(), filler, [255, 255, 255])
+                
+                return filledSource
         
         else:
             return frame
