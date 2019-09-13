@@ -141,7 +141,11 @@ class AR:
                 # Fill it with white color
                 filledSource = cv2.fillConvexPoly(s.copy(), filler, [255, 255, 255])
                 
-                return filledSource
+                # Convert it to gray scale
+                filledSourceGray = cv2.cvtColor(filledSource, cv2.COLOR_BGR2GRAY)
+                
+                # Define the threshold to separate foreground from background
+                ret, mask = cv2.threshold(filledSourceGray, 150, 255, cv2.THRESH_BINARY_INV)
         
         else:
             return frame
