@@ -146,6 +146,14 @@ class AR:
                 
                 # Define the threshold to separate foreground from background
                 ret, mask = cv2.threshold(filledSourceGray, 150, 255, cv2.THRESH_BINARY_INV)
+                
+                 # Get the inverted mask
+                mask_inv = cv2.bitwise_not(mask)
+                
+                # Get the background image
+                background = cv2.bitwise_and(frame, frame, mask = mask)
+                
+                return background
         
         else:
             return frame
