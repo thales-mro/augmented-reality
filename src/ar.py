@@ -64,10 +64,10 @@ class AR:
         
                 processedFrames.append(frame)
                 
-                cv2.imshow('current_frame', frame)
+                #cv2.imshow('current_frame', frame)
                 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                #if cv2.waitKey(1) & 0xFF == ord('q'):
+                #    break
                 
             # Read the next frame
             success, image = video_capture.read()
@@ -79,7 +79,7 @@ class AR:
         fps = video_capture.get(cv2.CAP_PROP_FPS)
 
         # Write the dvix header
-        fourcc = cv2.VideoWriter_fourcc('M','J','P','G') # DVIX
+        fourcc = cv2.VideoWriter_fourcc('M','P','E','G') # DVIX
                 
         # Create the video out writter
         video_out = cv2.VideoWriter("output/o-0.mp4",  fourcc, fps, size)
@@ -108,14 +108,14 @@ class AR:
         # Sort based on distance
         matches = sorted(matches, key=lambda x: x.distance)
 
-        if len(matches) > 10:
+        if len(matches) > 5:
             
             # Get the keypoints for each match
             target_points = np.float32([self.keypoints_target[m.queryIdx].pt for m in matches])
             frame_points = np.float32([keypoints_frame[m.trainIdx].pt for m in matches])
             
             # Find the homography matrix
-            H, _ = cv2.findHomography(target_points.reshape(-1, 1, 2), frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
+            H, _ = cv2.findHomography(target_points.reshape(-1, 1, 2), frame_points.reshape(-1, 1, 2), cv2.RANSAC, 3.0)
             
              # Find the rectangle around the target image
             target_edges = np.float32([[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1], [self.target_h-1, 0]]).reshape(-1, 1, 2)
@@ -153,7 +153,11 @@ class AR:
                 # Get the background image
                 background = cv2.bitwise_and(frame, frame, mask = mask)
                 
-                return background
+                # Get the foreground image
+                foregound = cv2.bitwise_and(s, s, mask = mask_inv)
+                
+                # Add both images
+                return cv2.add(background, foregound)
         
         else:
             return frame
