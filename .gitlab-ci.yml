@@ -10,7 +10,7 @@ before_script:
 stages:
   - build
   - exec
-  - report
+#  - report
 
 build:
   stage: build
