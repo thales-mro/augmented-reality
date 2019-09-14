@@ -8,7 +8,10 @@ class AR:
 
        Methods
        -------
-
+        execute_video(inputPath, outputPath, operation)
+            Execeute the ar operation on a video
+        _generate_frame(frame, operation, min_matches=5)
+            Generate e new frame
        """
 
     def __init__(self, targetPath, sourcePath):
@@ -38,18 +41,20 @@ class AR:
         self.source = cv2.resize(self.source, (self.target_h, self.target_w), interpolation = cv2.INTER_AREA)
 
       
-    def execute_video(self, videoPath):
+    def execute_video(self, inputPath, outputPath, operation):
         """
         It execute the ar for a video file
 
         Keyword arguments:
-        videoPath -- the video path
+        inputPath -- the input video path
+        outputPath -- the output video path
+        operation -- operation to apply o nthe frame
         """
         
         processedFrames = []
                 
         # Open the video
-        video_capture = cv2.VideoCapture(videoPath)
+        video_capture = cv2.VideoCapture(inputPath)
         
         # Read the first frame
         success, image = video_capture.read()
@@ -57,17 +62,13 @@ class AR:
         # For each frame
         while success:
             
-            frame = self._generate_frame(image, operation=2)
+            frame = self._generate_frame(image, operation=operation)
                         
             # Add the processed frame to the list
             if frame is not None:
         
+                # Process the frame
                 processedFrames.append(frame)
-                
-                #cv2.imshow('current_frame', frame)
-                
-                #if cv2.waitKey(1) & 0xFF == ord('q'):
-                #    break
                 
             # Read the next frame
             success, image = video_capture.read()
@@ -79,10 +80,10 @@ class AR:
         fps = video_capture.get(cv2.CAP_PROP_FPS)
 
         # Write the dvix header
-        fourcc = cv2.VideoWriter_fourcc('M','P','E','G') # DVIX
+        fourcc = cv2.VideoWriter_fourcc('M','P','E','G')
                 
         # Create the video out writter
-        video_out = cv2.VideoWriter("output/o-0.mp4",  fourcc, fps, size)
+        video_out = cv2.VideoWriter(outputPath,  fourcc, fps, size)
         
         # Write each frame to a new video
         for i in processedFrames:
@@ -92,11 +93,14 @@ class AR:
         video_out.release() 
         
         
-    def _generate_frame(self, frame, operation):
+    def _generate_frame(self, frame, operation, min_matches=5):
         """
         It generates a newframe based on source and target images
 
         Keyword arguments:
+        frame -- the frame to be modified
+        operation -- operation to apply o nthe frame
+        min_matches -- minimum numbers of matches to find the homography matrix
         """
         
         # Compute keypoints and descriptors of the target frame
@@ -108,7 +112,7 @@ class AR:
         # Sort based on distance
         matches = sorted(matches, key=lambda x: x.distance)
 
-        if len(matches) > 5:
+        if len(matches) > min_matches:
             
             # Get the keypoints for each match
             target_points = np.float32([self.keypoints_target[m.queryIdx].pt for m in matches])
@@ -129,7 +133,6 @@ class AR:
             elif operation == 1: 
                 # Draw the rectangle around the target image
                 return cv2.polylines(frame, [target_edges], True, 255, 3, cv2.LINE_AA)  
-            
             elif operation == 2 and H is not None:
 
                 # Warp the source image
