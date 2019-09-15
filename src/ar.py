@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from matching import Matching
 
 
 class AR:
@@ -14,11 +15,11 @@ class AR:
 
     def __init__(self, targetPath, sourcePath):
         
-        # Create ORB detector
-        self.orb = cv2.ORB_create()
-        
-        # Create BFMatcher
-        self.bfMatcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        # Create SIFT detector
+        self.orb = cv2.xfeatures2d.SIFT_create()
+                
+        # Create the Matching Algorithm
+        self.matcher = Matching()
         
         # Read the target image
         self.target = cv2.imread(targetPath)
@@ -39,7 +40,7 @@ class AR:
         self.initial_target_edges = np.float32([[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1], [self.target_h-1, 0]]).reshape(-1, 1, 2)
 
       
-    def execute_video(self, inputPath, outputPath, operation, min_matches=5):
+    def execute_video(self, inputPath, outputPath, operation, max_frames=-1, min_matches=5):
         """
         It executes the ar for a video file
 
@@ -47,6 +48,7 @@ class AR:
         inputPath -- the input video path
         outputPath -- the output video path
         operation -- operation to apply o nthe frame
+        max_frames -- maximum number of frames to process
         min_matches -- minimum number os matches to find the homography matrix
         """
         
@@ -67,17 +69,18 @@ class AR:
         # Compute keypoints and descriptors of the previous frame
         keypoints_previous_frame, descriptors_previous_frame = self.orb.detectAndCompute(previous_frame, None)
         
+        index = 0
+        
         # For each frame
         while success:
+            
+            print(f"Processing Frame {index}")
 
             # Compute keypoints and descriptors of the current frame
             keypoints_current_frame, descriptors_current_frame = self.orb.detectAndCompute(current_frame, None)
-
+            
             # Find the matches between the previous frame and the current frame
-            matches = self.bfMatcher.match(descriptors_previous_frame, descriptors_current_frame)
-
-            # Sort based on distance
-            matches = sorted(matches, key=lambda x: x.distance)
+            matches = self.matcher.match(descriptors_previous_frame, descriptors_current_frame, k=2)
 
             if len(matches) > min_matches:
                 
@@ -86,7 +89,7 @@ class AR:
                 current_frame_points = np.float32([keypoints_current_frame[m.trainIdx].pt for m in matches])
                 
                 # Find the homography matrix
-                H, _ = cv2.findHomography(previous_frame_points.reshape(-1, 1, 2), current_frame_points.reshape(-1, 1, 2), cv2.RANSAC, 3.0)
+                H, _ = cv2.findHomography(previous_frame_points.reshape(-1, 1, 2), current_frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
                 
                 # Set the accumulative transformations
                 H_all = H if H_all is None else np.matmul(H, H_all)
@@ -96,7 +99,7 @@ class AR:
         
                 if operation == 0:
                     # Draw the 20 matches
-                    output_frame = cv2.drawMatches(previous_frame.copy(), keypoints_previous_frame, current_frame.copy(), keypoints_current_frame, matches[:20], 0, flags=2)
+                    output_frame = cv2.drawMatchesKnn(previous_frame.copy(), keypoints_previous_frame, current_frame.copy(), keypoints_current_frame, list(map(lambda x: [x], matches)), None, flags=2)
                 elif operation == 1: 
                     # Draw the rectangle around the target image
                     output_frame = cv2.polylines(current_frame.copy(), [np.int32(target_edges)], True, 255, 3, cv2.LINE_AA) 
@@ -130,8 +133,14 @@ class AR:
                     # Add both images
                     output_frame = cv2.add(background, foregound)
 
-                    processedFrames.append(output_frame)
-            
+                
+                processedFrames.append(output_frame)
+                
+                index += 1
+                
+                if max_frames > 0 and index > max_frames:
+                    break
+                            
                 
             # Set the previous frame
             previous_frame = current_frame
