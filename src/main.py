@@ -1,6 +1,4 @@
-import numpy as np
 from ar import AR
-
 
 def main():
     """
@@ -15,4 +13,3 @@ def main():
 
 
 main()
-
