@@ -9,7 +9,7 @@ class AR:
 
        Methods
        -------
-        execute_video(inputPath, outputPath, operation)
+        execute_video(input_path, output_path, operation)
             Execeute the ar operation on a video
        """
 
@@ -42,13 +42,13 @@ class AR:
             [[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1],
              [self.target_h-1, 0]]).reshape(-1, 1, 2)
 
-    def execute_video(self, inputPath, outputPath, operation, max_frames=-1, min_matches=5):
+    def execute_video(self, input_path, output_path, operation, max_frames=-1, min_matches=5):
         """
         It executes the ar for a video file
 
         Keyword arguments:
-        inputPath -- the input video path
-        outputPath -- the output video path
+        input_path -- the input video path
+        output_path -- the output video path
         operation -- operation to apply o nthe frame
         max_frames -- maximum number of frames to process
         min_matches -- minimum number os matches to find the homography matrix
@@ -60,7 +60,7 @@ class AR:
         h_all = None
 
         # Open the video
-        video_capture = cv2.VideoCapture(inputPath)
+        video_capture = cv2.VideoCapture(input_path)
 
         # Define the frame 0 as the target image
         previous_frame = self.target
@@ -95,12 +95,12 @@ class AR:
                     [keypoints_current_frame[m.trainIdx].pt for m in matches])
 
                 # Find the homography matrix
-                H, _ = cv2.findHomography(
+                h, _ = cv2.findHomography(
                     previous_frame_points.reshape(-1, 1, 2),
                     current_frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
 
                 # Set the accumulative transformations
-                h_all = H if h_all is None else np.matmul(H, h_all)
+                h_all = h if h_all is None else np.matmul(h, h_all)
 
                 # Project the edges on the image using the homography matrix
                 target_edges = cv2.perspectiveTransform(self.initial_target_edges, h_all)
@@ -111,12 +111,12 @@ class AR:
                         previous_frame.copy(), keypoints_previous_frame,
                         current_frame.copy(), keypoints_current_frame,
                         list(map(lambda x: [x], matches)), None, flags=2)
-                elif operation == 1: 
+                elif operation == 1:
                     # Draw the rectangle around the target image
                     output_frame = cv2.polylines(
                         current_frame.copy(), [np.int32(target_edges)], True, 255, 3, cv2.LINE_AA)
 
-                elif operation == 2 and H is not None:
+                elif operation == 2 and h is not None:
 
                     # Warp the source image
                     source = cv2.warpPerspective(
@@ -126,22 +126,22 @@ class AR:
                     filler = cv2.convexHull(np.int32(target_edges))
 
                     # Fill it with white color
-                    filledSource = cv2.fillConvexPoly(source.copy(), filler, [255, 255, 255])
+                    filled_source = cv2.fillConvexPoly(source.copy(), filler, [255, 255, 255])
 
                     # Convert it to gray scale
-                    filledSourceGray = cv2.cvtColor(filledSource, cv2.COLOR_BGR2GRAY)
+                    filled_source_gray = cv2.cvtColor(filled_source, cv2.COLOR_BGR2GRAY)
 
                     # Define the threshold to separate foreground from background
-                    ret, mask = cv2.threshold(filledSourceGray, 150, 255, cv2.THRESH_BINARY_INV)
+                    _, mask = cv2.threshold(filled_source_gray, 150, 255, cv2.THRESH_BINARY_INV)
 
                     # Get the inverted mask
                     mask_inv = cv2.bitwise_not(mask)
 
                     # Get the background image
-                    background = cv2.bitwise_and(current_frame, current_frame, mask = mask)
+                    background = cv2.bitwise_and(current_frame, current_frame, mask=mask)
 
                     # Get the foreground image
-                    foregound = cv2.bitwise_and(source, source, mask = mask_inv)
+                    foregound = cv2.bitwise_and(source, source, mask=mask_inv)
 
                     # Add both images
                     output_frame = cv2.add(background, foregound)
@@ -176,7 +176,7 @@ class AR:
         fourcc = cv2.VideoWriter_fourcc('M', 'P', 'E', 'G') # DVIX
 
         # Create the video out writter
-        video_out = cv2.VideoWriter("output/o-0.mp4", fourcc, fps, size)
+        video_out = cv2.VideoWriter(output_path, fourcc, fps, size)
 
         # Write each frame to a new video
         for i in processed_frames:
@@ -184,4 +184,3 @@ class AR:
 
         # Release the video file
         video_out.release()
-
