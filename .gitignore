@@ -8,6 +8,7 @@ __pycache__/
 /output/*
 .pylintrc
 .vscode/*
+Pipfile*
 # Report temporary file
 *.pdf
 
