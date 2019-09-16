@@ -42,7 +42,7 @@ class AR:
             [[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1],
              [self.target_h-1, 0]]).reshape(-1, 1, 2)
 
-    def execute_video(self, input_path, output_path, operation, max_frames=-1, min_matches=5):
+    def execute_video(self, input_path, output_path, operation, max_frames=-1, save_frame=False, min_matches=5):
         """
         It executes the ar for a video file
 
@@ -51,6 +51,7 @@ class AR:
         output_path -- the output video path
         operation -- operation to apply o nthe frame
         max_frames -- maximum number of frames to process
+        save_frame -- Flag to save the frame as an image
         min_matches -- minimum number os matches to find the homography matrix
         """
 
@@ -106,11 +107,15 @@ class AR:
                 target_edges = cv2.perspectiveTransform(self.initial_target_edges, h_all)
 
                 if operation == 0:
+                    
+                    # Convert to opencv match class
+                    matches_opencv = [cv2.DMatch(i.queryIdx, i.trainIdx, i.distance) for i in matches]
+                    
                     # Draw the 20 matches
                     output_frame = cv2.drawMatchesKnn(
                         previous_frame.copy(), keypoints_previous_frame,
                         current_frame.copy(), keypoints_current_frame,
-                        list(map(lambda x: [x], matches)), None, flags=2)
+                        [matches_opencv], None, flags=2)
                 elif operation == 1:
                     # Draw the rectangle around the target image
                     output_frame = cv2.polylines(
@@ -148,6 +153,10 @@ class AR:
 
 
                 processed_frames.append(output_frame)
+                
+                # Save the frame as an image
+                if save_frame:
+                    cv2.imwrite(f"output/frame-{index}.jpg", output_frame)
 
                 index += 1
 
