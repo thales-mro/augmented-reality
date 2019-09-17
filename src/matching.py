@@ -26,6 +26,20 @@ def euclidean_distance(a, b):
     return np.linalg.norm(a-b)
 
 
+class Match:
+    """
+       A class used to store the match information
+
+       Methods
+       -------
+       """
+
+    def __init__(self, queryIdx, trainIdx, distance):
+        self.queryIdx = queryIdx
+        self.trainIdx = trainIdx
+        self.distance = distance
+    
+
 class Matching:
     """
        A class used to execute the matching operations
@@ -78,16 +92,16 @@ class Matching:
         matches = []
 
         # For each descriptor in the current
-        for i, _ in enumerate(query):
+        for i, q in enumerate(query):
 
             # Get the k-nearest neighbors
-            neighbor = self._get_neighbors(train, query[i], k)
+            neighbor = self._get_neighbors(train, q, k)
 
             matches_knn = set()
 
             # Create the k descriptor tuple
             for n in neighbor:
-                matches_knn.add(cv2.DMatch(i, n[0], n[1]))
+                matches_knn.add(Match(i, n[0], n[1]))
 
             matches.append(matches_knn)
 
@@ -107,8 +121,8 @@ class Matching:
         distances = np.zeros((np.shape(query)[0], 2), dtype=np.int)
 
         # For each pair, calculates the distance
-        for x, _ in enumerate(query):
-            distances[x] = (x, euclidean_distance(train, query[x]))
+        for x, q in enumerate(query):
+            distances[x] = (x, euclidean_distance(train, q))
 
         # Sort based on distance using numpy notation
         distances = distances[distances[:, 1].argsort()]
