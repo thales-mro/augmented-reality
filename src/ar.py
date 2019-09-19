@@ -36,13 +36,50 @@ class AR:
         # Resize the source image to the target's size
         self.source = cv2.resize(self.source, (
             self.target_h, self.target_w), interpolation = cv2.INTER_AREA)
+            
+        # Create the target mask for extracting the image
+        self.initial_target_mask = np.ones_like(self.target)*255
 
-        # Find the rectangle around the target image
-        self.initial_target_edges = np.float32(
-            [[0, 0], [0, self.target_w-1], [self.target_h-1, self.target_w-1],
-             [self.target_h-1, 0]]).reshape(-1, 1, 2)
 
-    def execute_video(self, input_path, output_path, operation, max_frames=-1, save_frame=False, min_matches=5):
+    def _warpAffine(self, source, a_matrix, shape):
+        
+        # Define the new shape
+        new_shape = (shape[0], shape[1], 3)
+        
+        # Create the empty new image
+        new_image = np.zeros(new_shape, dtype=np.uint8)
+        
+        # Separate the rotation matrix
+        a = a_matrix[:,0:2]
+        
+        # Separate the translation matrix
+        b = a_matrix[:,2:3]
+        
+        # Convert to homogeneous coordinates
+        a = np.hstack((np.flip(a), np.flip(b)))
+        a = np.vstack((a, [0,0,1]))
+        
+        for y in range(source.shape[0]):
+            for x in range(source.shape[1]):
+                
+                # Build the point
+                p = np.array([y, x, 1])
+
+                # Apply the affine transformation
+                y_1, x_1, _ = np.matmul(a, p)
+                
+                if y_1 >= shape[0]:
+                    y_1 = shape[0]-1
+                    
+                if x_1 >= shape[1]:
+                    x_1 = shape[1]-1
+                
+                new_image[int(y_1), int(x_1), :] = source[y, x, :]
+        
+        return new_image
+    
+
+    def execute(self, input_path, output_path, operation, max_frames=-1, min_matches=5):
         """
         It executes the ar for a video file
 
@@ -51,22 +88,33 @@ class AR:
         output_path -- the output video path
         operation -- operation to apply o nthe frame
         max_frames -- maximum number of frames to process
-        save_frame -- Flag to save the frame as an image
         min_matches -- minimum number os matches to find the homography matrix
         """
 
-        processed_frames = []
-
-        # The accumulative homography matrix
-        h_all = None
+        # The accumulative affine matrix
+        a_all = None
 
         # Open the video
         video_capture = cv2.VideoCapture(input_path)
+        
+         # Get the proper size
+        size = (int(
+            video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
-        # Define the frame 0 as the target image
+        # Get the proper fps
+        fps = video_capture.get(cv2.CAP_PROP_FPS)
+
+        # Write the dvix header
+        fourcc = cv2.VideoWriter_fourcc('M', 'P', 'E', 'G') # DVIX
+
+        # Create the video out writter
+        video_out = cv2.VideoWriter(output_path, fourcc, fps, size)
+
+        # Define frame 0 as the target image
         previous_frame = self.target
 
-        # Read the frame 1
+        # Read frame 1
         success, current_frame = video_capture.read()
 
         # Compute keypoints and descriptors of the previous frame
@@ -86,7 +134,11 @@ class AR:
 
             # Find the matches between the previous frame and the current frame
             matches = self.matcher.match(descriptors_previous_frame, descriptors_current_frame, k=2)
+            
+            # Sort the matches based on the distance
+            matches.sort(key=lambda x: x.distance)
 
+            # If the matches are greate than the threshold
             if len(matches) > min_matches:
 
                 # Get the keypoints for each match
@@ -95,16 +147,21 @@ class AR:
                 current_frame_points = np.float32(
                     [keypoints_current_frame[m.trainIdx].pt for m in matches])
 
-                # Find the homography matrix
-                h, _ = cv2.findHomography(
-                    previous_frame_points.reshape(-1, 1, 2),
-                    current_frame_points.reshape(-1, 1, 2), cv2.RANSAC, 5.0)
+                # Find the affine matrix                                
+                a = cv2.getAffineTransform(previous_frame_points[:3], current_frame_points[:3])
 
                 # Set the accumulative transformations
-                h_all = h if h_all is None else np.matmul(h, h_all)
-
-                # Project the edges on the image using the homography matrix
-                target_edges = cv2.perspectiveTransform(self.initial_target_edges, h_all)
+                if a_all is None:
+                    a_all = a
+                elif np.sum(a) > 0:
+                    
+                    # Convert to homogeneous coordinates
+                    j = np.vstack((a_all, [0,0,1]))
+                    i = np.vstack((a, [0,0,1]))
+                    k = np.matmul(j,i)
+                    
+                    # Return to euclidean coordinates
+                    a_all = k[0:2,:]
 
                 if operation == 0:
                     
@@ -121,23 +178,19 @@ class AR:
                     output_frame = cv2.polylines(
                         current_frame.copy(), [np.int32(target_edges)], True, 255, 3, cv2.LINE_AA)
 
-                elif operation == 2 and h is not None:
-
+                elif operation == 2:
+                                        
                     # Warp the source image
-                    source = cv2.warpPerspective(
-                        self.source.copy(), h_all, (current_frame.shape[1], current_frame.shape[0]))
-
-                    # Create a convex cover
-                    filler = cv2.convexHull(np.int32(target_edges))
-
-                    # Fill it with white color
-                    filled_source = cv2.fillConvexPoly(source.copy(), filler, [255, 255, 255])
+                    source = self._warpAffine(self.source, a_all, (current_frame.shape[0], current_frame.shape[1]))
+                    
+                    # Warp the mask
+                    target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[0], current_frame.shape[1]))
 
                     # Convert it to gray scale
-                    filled_source_gray = cv2.cvtColor(filled_source, cv2.COLOR_BGR2GRAY)
+                    target_mask_gray = cv2.cvtColor(target_mask, cv2.COLOR_BGR2GRAY)
 
                     # Define the threshold to separate foreground from background
-                    _, mask = cv2.threshold(filled_source_gray, 150, 255, cv2.THRESH_BINARY_INV)
+                    _, mask = cv2.threshold(target_mask_gray, 150, 255, cv2.THRESH_BINARY_INV)
 
                     # Get the inverted mask
                     mask_inv = cv2.bitwise_not(mask)
@@ -151,11 +204,13 @@ class AR:
                     # Add both images
                     output_frame = cv2.add(background, foregound)
 
-
-                processed_frames.append(output_frame)
+                
+                # Write each frame to a new video
+                video_out.write(output_frame)
                 
                 # Save the frame as an image
-                if save_frame:
+                if True:
+                    #numpy_horizontal = np.hstack((current_frame, output_frame))
                     cv2.imwrite(f"output/frame-{index}.jpg", output_frame)
 
                 index += 1
@@ -172,24 +227,9 @@ class AR:
 
             # Read the next frame
             success, current_frame = video_capture.read()
-
-        # Get the proper size
-        size = (int(
-            video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-
-        # Get the proper fps
-        fps = video_capture.get(cv2.CAP_PROP_FPS)
-
-        # Write the dvix header
-        fourcc = cv2.VideoWriter_fourcc('M', 'P', 'E', 'G') # DVIX
-
-        # Create the video out writter
-        video_out = cv2.VideoWriter(output_path, fourcc, fps, size)
-
-        # Write each frame to a new video
-        for i in processed_frames:
-            video_out.write(i)
+            
 
         # Release the video file
         video_out.release()
+        
+        
