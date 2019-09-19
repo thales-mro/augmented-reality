@@ -44,7 +44,7 @@ class AR:
     def _warpAffine(self, source, a_matrix, shape):
         
         # Define the new shape
-        new_shape = (shape[1], shape[0], 3)
+        new_shape = (shape[0], shape[1], 3)
         
         # Create the empty new image
         new_image = np.zeros(new_shape, dtype=np.uint8)
@@ -55,15 +55,26 @@ class AR:
         # Separate the translation matrix
         b = a_matrix[:,2:3]
         
-        for m in range(source.shape[0]):
-            for n in range(source.shape[1]):
+        # Convert to homogeneous coordinates
+        a = np.hstack((np.flip(a), np.flip(b)))
+        a = np.vstack((a, [0,0,1]))
+        
+        for y in range(source.shape[0]):
+            for x in range(source.shape[1]):
                 
-                x = np.array([[m], [n]])
+                # Build the point
+                p = np.array([y, x, 1])
 
                 # Apply the affine transformation
-                x_1, y_1 = np.matmul(a.T, x) + np.flip(b)
+                y_1, x_1, _ = np.matmul(a, p)
                 
-                new_image[int(x_1[0]), int(y_1[0]), :] = source[m, n, :]
+                if y_1 >= shape[0]:
+                    y_1 = shape[0]-1
+                    
+                if x_1 >= shape[1]:
+                    x_1 = shape[1]-1
+                
+                new_image[int(y_1), int(x_1), :] = source[y, x, :]
         
         return new_image
     
@@ -170,10 +181,10 @@ class AR:
                 elif operation == 2:
                                         
                     # Warp the source image
-                    source = self._warpAffine(self.source, a_all, (current_frame.shape[1], current_frame.shape[0]))
+                    source = self._warpAffine(self.source, a_all, (current_frame.shape[0], current_frame.shape[1]))
                     
                     # Warp the mask
-                    target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[1], current_frame.shape[0]))
+                    target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[0], current_frame.shape[1]))
 
                     # Convert it to gray scale
                     target_mask_gray = cv2.cvtColor(target_mask, cv2.COLOR_BGR2GRAY)
