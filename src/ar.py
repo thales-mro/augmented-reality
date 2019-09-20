@@ -126,9 +126,6 @@ class AR:
         cv2.drawKeypoints(previous_frame, keypoints_previous_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         cv2.imwrite('sift_keypoints.jpg', img_aux)
 
-        print(previous_frame.shape)
-        print(len(keypoints_previous_frame), len(descriptors_previous_frame))
-
         index = 0
         r = 0
         transform = at.AffineTransform(0.99, 0.125, 1)
@@ -145,9 +142,6 @@ class AR:
             cv2.drawKeypoints(current_frame, keypoints_current_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
             cv2.imwrite('sift_keypoints_cf.jpg', img_aux)
 
-
-            print(len(keypoints_current_frame), len(descriptors_current_frame), len(keypoints_previous_frame), len(descriptors_previous_frame))
-
             # Find the matches between the previous frame and the current frame
             matches = self.matcher.match(descriptors_previous_frame, descriptors_current_frame, k=2)
             
@@ -162,12 +156,6 @@ class AR:
                     [keypoints_previous_frame[m.queryIdx].pt for m in matches])
                 current_frame_points = np.float32(
                     [keypoints_current_frame[m.trainIdx].pt for m in matches])
-
-
-                print("Shape of points:", previous_frame_points.shape)
-                print("Vai rodar o ransacao")
-                if r <= 15:
-                    transform.get_affine_transform_matrix(previous_frame_points, current_frame_points)
 
                 # Find the affine matrix                                
                 a = cv2.getAffineTransform(previous_frame_points[:3], current_frame_points[:3])
