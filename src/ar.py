@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import affine_transform as at
 from matching import Matching
 
 
@@ -127,8 +128,13 @@ class AR:
         keypoints_previous_frame, descriptors_previous_frame = self.sift.detectAndCompute(
             previous_frame, None)
 
-        index = 0
+        img_aux = np.zeros_like(previous_frame)
+        cv2.drawKeypoints(previous_frame, keypoints_previous_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        cv2.imwrite('sift_keypoints.jpg', img_aux)
 
+        index = 0
+        r = 0
+        transform = at.AffineTransform(0.99, 0.125, 1)
         # For each frame
         while success:
 
@@ -137,6 +143,10 @@ class AR:
             # Compute keypoints and descriptors of the current frame
             keypoints_current_frame, descriptors_current_frame = self.sift.detectAndCompute(
                 current_frame, None)
+
+            img_aux = np.zeros_like(current_frame)
+            cv2.drawKeypoints(current_frame, keypoints_current_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            cv2.imwrite('sift_keypoints_cf.jpg', img_aux)
 
             # Find the matches between the previous frame and the current frame
             matches = self.matcher.match(descriptors_previous_frame, descriptors_current_frame, k=2)
@@ -233,6 +243,9 @@ class AR:
 
             # Read the next frame
             success, current_frame = video_capture.read()
+
+            r += 1
+            transform.set_inliers_rate(0.75)
             
 
         # Release the video file
