@@ -16,7 +16,8 @@ def points_distance(x, x_next, y, y_next):
 
 def least_squares(prev_points, curr_points):
     """
-    It calculates least squares in order to find affine transform that transform a set of coordinates to another
+    It calculates least squares in order to find affine transform that transforms
+    a set of coordinates to another
 
     Keyword arguments:
     prev_points -- set of original coordinates
@@ -103,15 +104,8 @@ class AffineTransform:
         for idx, point in enumerate(previous_points):
             tf_x = a[0][0]*point[0] + a[1][0]*point[1] + a[2][0]
             tf_y = a[3][0]*point[0] + a[4][0]*point[1] + a[5][0]
-
             distance = points_distance(current_points[idx][0], tf_x, current_points[idx][1], tf_y)
-            #print("Distance:", distance)
             distances.append(distance)
-
-            '''if distance <= self._threshold:
-                n_match_points += 1
-            else:
-                unmatch_points_idx.append(idx)'''
 
         max_d = np.max(distances)
 
@@ -119,13 +113,12 @@ class AffineTransform:
         for d in distances:
             normalized_distance.append(d/max_d)
 
-        for idx, nd in enumerate(normalized_distance):
-            if nd < self._threshold:
+        for idx, n_d in enumerate(normalized_distance):
+            if n_d < self._threshold:
                 n_match_points += 1
             else:
                 unmatch_points_idx.append(idx)
-        print("number of matches:", n_match_points)
-        #print("Normalized distances:", ])
+
         return n_match_points, unmatch_points_idx
 
     def get_affine_transform_matrix(self, previous_f_points, current_f_points):
@@ -139,16 +132,15 @@ class AffineTransform:
         """
         # n_points = len(current_f_points)
         point_matches = np.zeros((self._n_ransac_iterations, 3, 2), dtype=np.float32)
-        best_match_points = 0
+        best_number_matches = 0
         best_a = []
-        best_guess_combination = []
         previous_f_ransac_set = np.copy(previous_f_points)
         current_f_ransac_set = np.copy(current_f_points)
 
         # starts RANSAC
         for i in range(self._n_ransac_iterations):
-            n_points= len(previous_f_ransac_set)
-            # find 3-points combination which as not chosen before
+            n_points = len(previous_f_ransac_set)
+            # find 3-points combination which was not chosen before
             valid_eq_points = False
             while not valid_eq_points:
 
@@ -158,28 +150,29 @@ class AffineTransform:
                 while idx < 3:
 
                     guess = random.randint(0, n_points - 1)
-                    if not (pf_guess_array == previous_f_ransac_set[guess]).all(1).any():
                     #if not guess in guess_array:
-                        #print("Entrou aqui?", guess)
+                    if not (pf_guess_array == previous_f_ransac_set[guess]).all(1).any():
                         pf_guess_array[idx][0] = previous_f_ransac_set[guess][0]
                         pf_guess_array[idx][1] = previous_f_ransac_set[guess][1]
                         cf_guess_array[idx][0] = current_f_ransac_set[guess][0]
                         cf_guess_array[idx][1] = current_f_ransac_set[guess][1]
-                        #guess_array[idx] = previous_f_ransac_set[idx]
                         idx += 1
 
-                #print("Saiu do loop:", pf_guess_array, np.any(np.all(pf_guess_array == point_matches, axis=(1, 2))))
                 valid_eq_points = not np.any(np.all(pf_guess_array == point_matches, axis=(1, 2)))
-                #valid_eq_points = not (point_matches == guess_array).all(1).any()
             point_matches[i] = pf_guess_array
 
+            # solve least squares for the guess combination
             a = least_squares(pf_guess_array, cf_guess_array)
-            n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(previous_f_points, current_f_points, a)
-            #print("Number of matches:", n_matches)
-            if n_matches > best_match_points:
-                best_match_points = n_matches
-                best_guess_combination = pf_guess_array
-                match_rate = best_match_points/len(previous_f_points)
+            n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(
+                previous_f_points, current_f_points, a)
+
+            # if the number of matches obtained this time is greater than previous iterations, 
+            # we have a new best affine transform matrix
+            if n_matches > best_number_matches:
+                best_number_matches = n_matches
+                best_a = a
+                match_rate = best_number_matches/len(previous_f_points)
+                # if it achieves considerably good success rate, we can remove outlier candidates
                 if match_rate > self._success_rate/2:
                     idx_to_be_deleted = []
                     for idx in unmatch_points_idx:
@@ -187,16 +180,17 @@ class AffineTransform:
                         idx = np.where(m == True)
                         for el in idx[0]:
                             idx_to_be_deleted.append(el)
-                    previous_f_ransac_set = np.delete(previous_f_ransac_set, idx_to_be_deleted, axis=0)
-                    current_f_ransac_set = np.delete(current_f_ransac_set, idx_to_be_deleted, axis=0)
-                best_a = a
+                    previous_f_ransac_set = np.delete(
+                        previous_f_ransac_set, idx_to_be_deleted, axis=0)
+                    current_f_ransac_set = np.delete(
+                        current_f_ransac_set, idx_to_be_deleted, axis=0)
 
+        # solve least squares one last time with all the survivor candidates
         a_final = least_squares(previous_f_ransac_set, current_f_ransac_set)
-        #print("a_final", a_final)
-        n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(previous_f_points, current_f_points, a_final)
-        print("Number of matches in final iteration:", n_matches)
-        if n_matches > best_match_points:
+        n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(
+            previous_f_points, current_f_points, a_final)
+        if n_matches > best_number_matches:
             best_a = a_final
+            best_number_matches = n_matches
 
-        print("At the end:", len(current_f_ransac_set))
         return best_a
