@@ -68,6 +68,12 @@ class AR:
                 # Apply the affine transformation
                 y_1, x_1, _ = np.matmul(a, p)
                 
+                if y_1 < 0:
+                    y_1 = 0
+                    
+                if x_1 < 0:
+                    x_1 = 0
+                
                 if y_1 >= shape[0]:
                     y_1 = shape[0]-1
                     
