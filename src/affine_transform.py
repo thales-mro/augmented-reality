@@ -193,4 +193,4 @@ class AffineTransform:
             best_a = a_final
             best_number_matches = n_matches
 
-        return best_a
+        return np.reshape(best_a, (2, 3))

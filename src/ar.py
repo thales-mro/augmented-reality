@@ -133,8 +133,7 @@ class AR:
         cv2.imwrite('sift_keypoints.jpg', img_aux)
 
         index = 0
-        r = 0
-        transform = at.AffineTransform(0.99, 0.125, 1)
+        transform = at.AffineTransform(0.99, 0.125, 0.1)
         # For each frame
         while success:
 
@@ -163,8 +162,8 @@ class AR:
                 current_frame_points = np.float32(
                     [keypoints_current_frame[m.trainIdx].pt for m in matches])
 
-                # Find the affine matrix                                
-                a = cv2.getAffineTransform(previous_frame_points[:3], current_frame_points[:3])
+                # Find the affine matrix                     
+                a = transform.get_affine_transform_matrix(previous_frame_points, current_frame_points)
 
                 # Set the accumulative transformations
                 if a_all is None:
@@ -244,7 +243,6 @@ class AR:
             # Read the next frame
             success, current_frame = video_capture.read()
 
-            r += 1
             transform.set_inliers_rate(0.75)
             
 
