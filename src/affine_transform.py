@@ -34,8 +34,27 @@ def least_squares(prev_points, curr_points):
         y[2*idx][0] = curr_points[idx][0]
         y[2*idx + 1][0] = curr_points[idx][1]
 
-    a = (np.linalg.inv((x.transpose()).dot(x))).dot(((x.transpose()).dot(y)))
+   # a = (np.linalg.inv((x.transpose()).dot(x))).dot(((x.transpose()).dot(y)))
+    uu = x.copy()
+    transp_times_x = (np.transpose(x)).dot(x)
+    #print(uu == x)
+    # #print(uu == x)
+    det = np.linalg.det(transp_times_x)
+    # # #print(x.shape[0])
+    if det == 0:
+        print("det")
+        return np.zeros((6, 1))
+    # singular matrix case
+    # if np.linalg.matrix_rank(transp_times_x) != x.shape[0]:
+    #     print("Singular matrixxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    #print("AAAA")
+    #a = (np.linalg.inv((np.transpose(x)).dot(x))).dot(((np.transpose(x)).dot(y)))
 
+    a = (np.linalg.inv(transp_times_x)).dot(((np.transpose(x)).dot(y)))
+
+
+   # a = (np.linalg.inv(transp_times_x)).dot(((x.transpose()).dot(y)))
+   # a = (np.linalg.inv(transp_times_x)).dot(((x.transpose()).dot(y)))
     return a
 
 class AffineTransform:
