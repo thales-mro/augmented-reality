@@ -243,7 +243,7 @@ class AR:
             # Read the next frame
             success, current_frame = video_capture.read()
 
-            transform.set_inliers_rate(0.75)
+            #transform.set_inliers_rate(0.75)
             
 
         # Release the video file
