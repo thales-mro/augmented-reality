@@ -9,7 +9,7 @@ def main():
     ar = AR('input/i-2.jpg', 'input/i-1.jpg')
 
     # Generate the ar video
-    ar.execute("input/i-0.mp4", "output/o-0.mp4", 2, 500)
+    ar.execute("input/i-0.mp4", "output/o-0.mp4", compare_frame_by_frame=False)
 
 
 main()
