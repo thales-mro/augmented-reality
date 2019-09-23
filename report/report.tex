@@ -6,6 +6,7 @@
 \usepackage{float}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{amsmath}
 %listings settings
 \definecolor{codegreen}{rgb}{0,0.6,0}
 \definecolor{codegray}{rgb}{0.5,0.5,0.5}
@@ -165,26 +166,205 @@ In this section, it is presented the implemented algorithm in this project. The 
 % \end{table}
 
 \subsection{Calculating the Affine Transform between two frames}
-\todolist{Explicar Affine transform nosso}
+
+To learn the appropriate Affine transform between frames, which is used for estimate the position of the target frame, the candidate keypoint matches from the previous subsection are used here. As the Affine transform has 6 degrees of freedom (associated with rotation and translation in the coordinate system), we need 3 pairs of candidate keypoints in order to find the parameters of the Affine transform matrix such that:
+
+\begin{equation}
+    Y = AX
+    \label{eq:mat}
+\end{equation}
+
+which $Y$ are the candidate match points in the current frame, $A$ is the affine transform matrix and $X$ are the candidate match points in the previous frame. 
+Equation \ref{eq:mat} can be explanded for the transformation of one pair of candidate matches as:
+
+\begin{equation}
+\begin{bmatrix}
+  x_{i}^{'} \\ y_{i}^{'}
+\end{bmatrix}  =
+\begin{bmatrix}
+  a & b & c \\ d & e & f
+\end{bmatrix}.
+\begin{bmatrix}
+  x_{i} \\ y_{i} \\ 1
+\end{bmatrix}  
+\end{equation}
+
+As we have 6 variables to solve for, we need 3 pairs of candidate matches.
+
+To solve $A$ for three candidate matches, consider equation \ref{eq:mat}. Expanding the equation, we have that:
+
+\begin{equation}
+  \begin{bmatrix}
+    x_{1} & y_{1} & 1 & 0 & 0 & 0 \\
+    0 & 0 & 0 & x_{1} & y_{1} & 1 \\
+    x_{2} & y_{2} & 1 & 0 & 0 & 0 \\
+    0 & 0 & 0 & x_{2} & y_{2} & 1 \\
+    x_{3} & y_{3} & 1 & 0 & 0 & 0 \\
+    0 & 0 & 0 & x_{3} & y_{3} & 1 \\
+  \end{bmatrix}
+  .
+  \begin{bmatrix}
+      a \\
+      b \\
+      c \\
+      d \\
+      e \\
+      f
+  \end{bmatrix} = 
+  \begin{bmatrix}
+    x_{1}^{'} \\
+    y_{1}^{'} \\
+    x_{2}^{'} \\
+    y_{2}^{'} \\
+    x_{3}^{'} \\
+    y_{3}^{'} \\
+  \end{bmatrix}
+\end{equation}
+
+Using Least Squares for this specific case, we have that A is:
+
+\begin{equation}
+  A = (X^{T}X)^{-1}(X^{T}Y)
+  \label{eq:ls}
+\end{equation}
+
+Listing \ref{code:least-squares} shows our implementation of the Least Squares to solve equation \ref{eq:ls}. As visible, we treat the possibility of $X^{T}.X$ being a singular matrix by returning A as a 0-matrix (bad combination of candidate matches).
+
+ \begin{lstlisting}[language=Python, caption={Least Squares Implementation}, label={code:least-squares}]
+  def least_squares(prev_points, curr_points):
+    """
+    It calculates least squares in order to find affine transform that transforms
+    a set of coordinates to another
+
+    Keyword arguments:
+    prev_points -- set of original coordinates
+    curr_points -- set of transformed coordinates
+    """
+    n_points = prev_points.shape[0]
+    x = np.zeros(shape=(2*n_points, 6), dtype=np.float32)
+    for idx, _ in enumerate(prev_points):
+        x[2*idx] = [prev_points[idx][0], prev_points[idx][1], 1, 0, 0, 0]
+        x[2*idx + 1] = [0, 0, 0, prev_points[idx][0], prev_points[idx][1], 1]
+
+    y = np.zeros(shape=(2*n_points, 1), dtype=np.float32)
+    for idx, _ in enumerate(curr_points):
+        y[2*idx][0] = curr_points[idx][0]
+        y[2*idx + 1][0] = curr_points[idx][1]
+
+    transp_times_x = (np.transpose(x)).dot(x)
+    det = np.linalg.det(transp_times_x)
+
+    #Singular Matrix
+    if det == 0:
+        return np.zeros((6, 1))
+
+    a = (np.linalg.inv(transp_times_x)).dot(((np.transpose(x)).dot(y)))
+    return a
+\end{lstlisting}
+
+Considering that not necessarily all the candidates are suitable (as mentioned before), we use RANSAC (Random Sample Consensus) to estimate valid candidates for solving the system. This algorithm picks 3 random candidate matches, solves the $A$ matrix using Least Squares and evaluates if $A$ is good by testing it with the candidates themselves. If the calculated $A$ is the best, it holds that $A$. It executes the algorithm $k$ times, removing bad matches from the candidates to be picked to solve $A$ after every good $A$ fit. After $k$ times, it executes Least Squares algorithm one last time to all remaining match candidates to find best possible $A$ for the set, and returns it. Following subsections explain in a more detailed way the full implementation. The RANSAC algorithm explained here is shown in listing \ref{code:ransac}
+
+\begin{lstlisting}[language=Python, caption={RANSAC to estimate Affine Transformation Matrix}, label={code:ransac}]
+  def get_affine_transform_matrix(self, previous_f_points, current_f_points):
+    """
+    It runs RANSAC with least squares to find the affine transform
+    matrix for the candidate matches
+
+    Keyword arguments:
+    previous_points -- set of original candidate coordinates
+    current_points -- set of transformed candidate coordinates
+    """
+    point_matches = np.zeros((self._n_ransac_iterations, 3, 2), dtype=np.float32)
+    best_number_matches = 0
+    best_a = []
+    previous_f_ransac_set = np.copy(previous_f_points)
+    current_f_ransac_set = np.copy(current_f_points)
+
+    # starts RANSAC
+    for i in range(self._n_ransac_iterations):
+        n_points = len(previous_f_ransac_set)
+        # find 3-points combination which was not chosen before
+        valid_eq_points = False
+        while not valid_eq_points:
+
+            idx = 0
+            pf_guess_array = np.full((3, 2), -1)
+            cf_guess_array = np.full((3, 2), -1)
+            while idx < 3:
+
+                guess = random.randint(0, n_points - 1)
+                #if not guess in guess_array:
+                if not (pf_guess_array == previous_f_ransac_set[guess]).all(1).any():
+                    pf_guess_array[idx][0] = previous_f_ransac_set[guess][0]
+                    pf_guess_array[idx][1] = previous_f_ransac_set[guess][1]
+                    cf_guess_array[idx][0] = current_f_ransac_set[guess][0]
+                    cf_guess_array[idx][1] = current_f_ransac_set[guess][1]
+                    idx += 1
+
+            valid_eq_points = not np.any(np.all(pf_guess_array == point_matches, axis=(1, 2)))
+        point_matches[i] = pf_guess_array
+
+        # solve least squares for the guess combination
+        a = least_squares(pf_guess_array, cf_guess_array)
+        n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(
+            previous_f_points, current_f_points, a)
+
+        # if the number of matches obtained this time is greater than previous iterations, 
+        # we have a new best affine transform matrix
+        if n_matches > best_number_matches:
+            best_number_matches = n_matches
+            best_a = a
+            match_rate = best_number_matches/len(previous_f_points)
+            # if it achieves considerably good success rate, we can remove outlier candidates
+            if match_rate > self._success_rate/2:
+                idx_to_be_deleted = []
+                for idx in unmatch_points_idx:
+                    m = (previous_f_ransac_set == previous_f_points[idx]).all(1)
+                    idx = np.where(m == True)
+                    for el in idx[0]:
+                        idx_to_be_deleted.append(el)
+                previous_f_ransac_set = np.delete(
+                    previous_f_ransac_set, idx_to_be_deleted, axis=0)
+                current_f_ransac_set = np.delete(
+                    current_f_ransac_set, idx_to_be_deleted, axis=0)
+
+    # solve least squares one last time with all the survivor candidates
+    a_final = least_squares(previous_f_ransac_set, current_f_ransac_set)
+    n_matches, unmatch_points_idx = self._matches_based_on_affine_matrix(
+        previous_f_points, current_f_points, a_final)
+    if n_matches > best_number_matches:
+        best_a = a_final
+        best_number_matches = n_matches
+
+    return np.reshape(best_a, (2, 3))
+\end{lstlisting}
+
+\subsubsection{Number of RANSAC Iterations}
+  As RANSAC is a stochastic algorithm, we need to estimate the minimum number of executions to have selected at least 1 group of three candidate match points that can solve the system and have a good A. It depends on probability functions, such as the probability good of inliers in our set (probability of good candidates in our system) and the success rate (how good the final matrix A has to be to solve the system). 
+
+  The number of iterations can be estimated, as descibed in the literature, as
+
+  \begin{equation}
+    k = \dfrac{\log (1 - P_{success})}{\log (1 - (P_{inliers})^{2})}
+  \end{equation}
+
+  Listing \ref{code:k} shows the function to calculate the number of iterations. We use the ceiling of the result of the division.
+
+  \begin{lstlisting}[language=Python, caption={Calculate number of RANSAC iterations}, label={code:k}]
+    def _calculate_ransac_iterations(self):
+      """
+      It calculates the number of ransac iterations needed based
+      on the probability of inliers in set and the desired success rate
+      """
+      n = math.log(1 - self._success_rate)/math.log(1 - (self._inliers_rate)**2)
+      self._n_ransac_iterations = int(math.ceil(n))
+  \end{lstlisting}
+
+\subsubsection{Evaluate calculated Affine Transform Matrix}
+
 % To generate the monochrome image, giving the converted characters and the output character dimension, it is up to writing each character in black color in an OpenCV image using the \textbf{cv2.putText} function, in a white background. To generate readable characters, each one occupies a space of 25 x 25 pixels in the image. Then the characters are printed equally-spaced. The listing \ref{code:mono-print} presents the implementation.
 
-%  \begin{lstlisting}[language=Python, caption={Monochrome ASCII image generator}, label={code:mono-print}]
-%     def print_ascii_image_mono(self, ascii_chars, shape, font_scale):
-%         font = cv2.FONT_HERSHEY_SIMPLEX
-%         # path sizes are used to draw the text into equally spaced positions in image
-%         path_size = 25
-%         newShape = np.asarray([shape[0], shape[1]])*path_size # 25 pixel for each char
-%         # Initialize mono ascii image with given shape and with white background
-%         mono_image = np.full(newShape, 255, np.uint8)
-%         # Draw the text (mono image)
-%         k = 0
-%         for j in range(0, shape[0]):
-%             for i in range(0, shape[1]):
-%                 cv2.putText(mono_image, ascii_chars[k], ((i)*path_size, (j + 1)*path_size),
-%                             font, font_scale, (0, 0, 0), 1)
-%                 k += 1
-%         return mono_image
-% \end{lstlisting}
+
 
 \subsection{Pasting image into target}
 \todolist{Explicar como colamos a imagem no target}
