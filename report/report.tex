@@ -361,7 +361,42 @@ Considering that not necessarily all the candidates are suitable (as mentioned b
   \end{lstlisting}
 
 \subsubsection{Evaluate calculated Affine Transform Matrix}
+In order to evaluate the calculated Affine Transform matrix, equation \ref{eq:mat} is solved for the $X$ candidate points from the previous frame and the $A$ matrix, and then the $Y$ points are evaluated using the candidate points from the current frame using the distance between each of them. These distances are then normalized and the ones smaller than a threshold are considered correct matches. The number of matches and the indexes of not matched points are returned to the main RANSAC algorithm. Listing \ref{code:eval} shows the implementation of the method. 
 
+\begin{lstlisting}[language=Python, caption={Evaluates calculated Affine Transform matrix}, label={code:eval}]
+  def _matches_based_on_affine_matrix(self, previous_points, current_points, a):
+    """
+    It measures how good is the calculate affine transform matrix
+    based on the threshold and candidate matches
+
+    Keyword arguments:
+    previous_points -- set of original coordinates
+    current_points -- set of transformed coordinates
+    """
+    n_match_points = 0
+    unmatch_points_idx = []
+    distances = []
+
+    for idx, point in enumerate(previous_points):
+        tf_x = a[0][0]*point[0] + a[1][0]*point[1] + a[2][0]
+        tf_y = a[3][0]*point[0] + a[4][0]*point[1] + a[5][0]
+        distance = points_distance(current_points[idx][0], tf_x, current_points[idx][1], tf_y)
+        distances.append(distance)
+
+    max_d = np.max(distances)
+
+    normalized_distance = []
+    for d in distances:
+        normalized_distance.append(d/max_d)
+
+    for idx, n_d in enumerate(normalized_distance):
+        if n_d < self._threshold:
+            n_match_points += 1
+        else:
+            unmatch_points_idx.append(idx)
+
+    return n_match_points, unmatch_points_idx
+\end{lstlisting}
 % To generate the monochrome image, giving the converted characters and the output character dimension, it is up to writing each character in black color in an OpenCV image using the \textbf{cv2.putText} function, in a white background. To generate readable characters, each one occupies a space of 25 x 25 pixels in the image. Then the characters are printed equally-spaced. The listing \ref{code:mono-print} presents the implementation.
 
 
