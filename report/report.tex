@@ -7,6 +7,7 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{amsmath}
+\usepackage{url}
 %listings settings
 \definecolor{codegreen}{rgb}{0,0.6,0}
 \definecolor{codegray}{rgb}{0.5,0.5,0.5}
@@ -63,7 +64,31 @@ In this section, it is presented the implemented algorithm in this project. The 
 
 
 \subsection{Interest Points and Descriptors}
-\todolist{Explicar o SIFT nosso}
+\section{SIFT}
+ The SIFT feature detection algorithm was chosen to extract the descriptors from each frame of the video. The reason for SIFT is that it's robust and can detect features invariant to translation, rotation and scale. It compares different image sizes to look for \textit{keypoints}. For this, a pyramid of Gaussian is generated (and an example can be seen at Fig. \ref{fig:gp}) and then the difference between the pyramid layers is calculated to generate a new octave with lesser information to look at. This new octave is called Difference of Gaussian.
+ 
+ \begin{figure}[H]
+     \centering
+     \includegraphics[width=0.2\hsize]{img/o-report-gp-0-0.png}
+     \includegraphics[width=0.1\hsize]{img/o-report-gp-9-0.png}
+     \includegraphics[width=0.05\hsize]{img/o-report-gp-18-0.png}
+     \includegraphics[width=0.025\hsize]{img/o-report-gp-27-0.png}
+     \caption{First image of each layer of Gaussian Pyramid}
+     \label{fig:gp}
+ \end{figure}
+ Then, the algorithm look on each layer, and the previous and the next one to look for the most significant gradients on those layers, resulting in a set of candidates for keypoints in a format [x,y,$\sigma$].
+ 
+ After that each is shifted a bit to represent better its position between the layers and to calculate Hessian (used further to discard edges) and it's coordinates are converted to polar. This way, the description collected is about it's surroundings in a radius an direction of it's resultant gradient. The keypoints with low contrast or with a descriptor that looks like an edge instead of corner are discarded using a contrast threshold set to $0.025$.
+ 
+ The Fig. \ref{fig:keypoints} show a comparison between the features detected with OpenCV's SIFT and the SIFT implemented in this work. The foundation of the code was extracted from the following three main sources: the sift paper, the OpenCV explanation\footnote{Introduction to SIFT (Scale-Invariant Feature Transform) \url{<https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_sift_intro/py_sift_intro.html>} accessed on 24/09/2019} and a python tutorial\footnote{Implementing SIFT in Python \url{<https://medium.com/@lerner98/implementing-sift-in-python-36c619df7945>} accessed on 24/09/2019}. The best configuration for SIFT parameter used in the project was: layers of octave = 17, number os octave = 4, sigma=1.6, and contrast threshold = 0.025.
+ 
+ \begin{figure}
+     \centering
+     \includegraphics[width=0.4\hsize]{img/o-kp-0.png}
+     \includegraphics[width=0.4\hsize]{img/o-kp-1.png}
+     \caption{Keypoints extracted (colorful circles) on the original template. On the left, the result from the SIFT implemented in this project. On the right, the features extracted using OpenCV's library}
+     \label{fig:keypoints}
+ \end{figure}
 
 
 \subsection{Target Frame Detection}
