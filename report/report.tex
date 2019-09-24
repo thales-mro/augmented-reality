@@ -55,7 +55,7 @@
 This work, developed by Group 8 of Computer Vision Course (2nd Semester/2019), has the goal of generating Augmented Reality videos, using a simple approach. In this sense, it is desired to substitute, in every single frame of the video, a specific region, which is called in this work "target", by another image, considering that the camera is moving freely in the environment (changing horizontal/vertical positions, rotating (counter)clockwise, zooming-in/out). To do such tasks, a pipeline was implemented and every single task divided. An image descriptor algorithm was implemented, to be able to locate the target frame within a video frame. For matching the target frame between 2 consecutive frames, a matching algorithm was implemented, to map candidate keypoints between those frames. Using those candidate matches, an algorithm using RANSAC and Least Squares was implemented to find the affine transform between frames. Therefore, we generate an AR video based on the original video, the descriptor, the matching algorithm and the affine transform algorithm. The following sections explain the implemented work, and the tests applied to the code.  
 
 \section{Implemented Algorithm}
-In this section, it is presented the implemented algorithm in this project. The code is distributed into five principal Python files, named \textbf{affine\_transform.py}, \textbf{ar.py}, \textbf{main.py}, \textbf{matching.py} and \textbf{sift.py}. The \textbf{affine\_transform.py} file contains the \textit{AffineTransform} class, which implements the RANSAC with Least Squares to calculate best Affine transform for the candidate matches. The \textbf{ar.py} file contains the \textit{AR} class, which implements the video manipulation, calls for the descriptor, matching and affine transform functions and pasting image into the target. The \textbf{main.py} file does the calls to the \textit{AR} class. The \textbf{matching.py} contains the \textit{Match} class, which calculates possible candidate matches from the keypoints and its descriptions calculated by the implementation done in the \textbf{sift.py} file. The following subsections explains main implementation decisions done in key parts of the project, based on pipeline execution order.
+In this section, it is presented the implemented algorithm in this project. The code is distributed into five principal Python files, named \textbf{affine\_transform.py}, \textbf{ar.py}, \textbf{main.py}, \textbf{matching.py} and \textbf{sift.py}. The \textbf{affine\_transform.py} file contains the \textit{AffineTransform} class, which implements the RANSAC with Least Squares to calculate best Affine transform for the candidate matches. The \textbf{ar.py} file contains the \textit{AR} class, which implements the video manipulation, calls for the descriptor, matching and affine transform functions and pasting image into the target. The \textbf{main.py} file does the calls to the \textit{AR} class. The \textbf{matching.py} contains the \textit{Matching} class, which calculates possible candidate matches from the keypoints and its descriptions calculated by the implementation done in the \textbf{sift.py} file. The following subsections explains main implementation decisions done in key parts of the project, based on pipeline execution order.
 
 
 \subsection{Implementation of the Pipeline}
@@ -64,106 +64,141 @@ In this section, it is presented the implemented algorithm in this project. The 
 
 \subsection{Find interest points in a pair of frames}
 \todolist{Explicar o SIFT nosso}
-%  As the ASCII image has an specified shape, we need to resize the input image to that shape. Many resizing algorithms were suggested, but as we have implemented a convolution function, an resizing approach that could involve some convolution was chosen.
-% The character's output resolution is only taken into consideration for the number of characters printed per line, in order to maintain the aspect ratio of each image, so the final image doesn't get distorted. In other words, the resize produces an image with character resolution pixels in the width and a proportion based on the original image dimensions and the character resolution pixels in the height.
-%  More specifically, a nearest neighbor interpolation was implemented. This approach creates a new image and calculate the relation between the new size and the original image's size. Then, each pixel of the image receives the corresponding pixel on the original one. If the goal is to increase the image dimensions, some of the pixels will be get more times than others. If it is to reduce the image, some of them will be skipped. On Listing \ref{code:nninterpolation} is the code that makes the interpolation.
- 
-%  \begin{lstlisting}[language=Python, caption={Nearest neighbor interpolation script}, label={code:nninterpolation}]
-% def resize(img, shape):
-%     ...
-%     # build the new image with shape intended
-%     result = np.zeros(shape[0]*shape[1]*3).reshape(shape[0], shape[1], 3)
-
-%     # get y and x ratios to calculate pixels positions to take
-%     y_ratio = shape[0]/img.shape[0]
-%     x_ratio = shape[1]/img.shape[1]
-
-%     for y in range(shape[0]):
-%         for x in range(shape[1]):
-%             result[y,x] = img[int(y/y_ratio),int(x/x_ratio)]
-
-%     return result.astype(np.uint8)
-% \end{lstlisting}
- 
-%  On down-sampling, we do not want lose much data. For this, blurring the input image distributes a bit of each pixel to its neighbors. This way, when some pixels are skipped, the resulted image is still going to get at least a fraction of the original's information.
- 
-%  On up-sampling, as the interpolation are not linear (this is, we do not estimate some value between other pixels), aliasing normally gets more evident. For this, a smaller blurring should reduce this aliasing in exchange to losing some details, to achieve a better resulting image.
- 
-%  A median filter was implemented for downsampling, as part of the project's requirement. As it is non-linear, the convolution function could not be used. For a specific kernel size, the image is padded and then each pixel of the image is modified to the median of its neighbors. The median filter works as a smoothing filter, and it is also a good choice for noise removal.
-%  The main routine of the function is shown in listing \ref{code:median}. It uses the median function of the numpy package to calculate the median in the window.
- 
-%   \begin{lstlisting}[language=Python, caption={Main routine of median filter function}, label={code:median}]
-% def median_filter(self, colored_img, kernel_shape, border_strategy=0):    
-%     ...
-%     #apply the median filter for the 3 channels seperately
-%     for chan in range(filtered_img.shape[2]):
-%         for j in range(filtered_img.shape[0]):
-%             for i in range(filtered_img.shape[1]):
-%                 filtered_img[j][i][chan] = np.median(
-%                     img_padded[j:j+kernel_shape[1], i:i+kernel_shape[0], chan])
-
-%     return filtered_img
-% \end{lstlisting}
- 
-%  We used convolution operation to apply the Gaussian filter to the image when needed. The Gaussian had width and height equals to 3 when up-sampling, and 5 when down-sampling. We used a function showed on Listing \ref{code:pascal} to generate a pascal based array and then generated the kernel by multiplying this array with its transposed form. Then, this kernel as used to blur the image before down-sampling or to blur the result after ups-ampling.
-%  \begin{lstlisting}[language=Python, caption={Pascal array generator to generate Gaussian masks}, label={code:pascal}]
-% def pascal(n):
-%     k = np.zeros((n,n))
-%     k[0,0] = 1
-%     for x in range(1,n):
-%         k[x,0] = k[x-1,0]
-%         for y in range(1,x+1):
-%             k[x,y] = k[x-1,y-1] + k[x-1,y]
-%     return np.array([k[n-1]])
-% \end{lstlisting}
-% On Figure~\ref{fig:resize-compare} we can see the difference between the results using OpenCV cubic interpolation and our nearest neighbor with Gaussian filter. On the other side, our upsampling approach achieved a less noisy result, while the down-sampling achieved as good as the Opencv's one.
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{img/o-cv2-a.png}
-%     \includegraphics[width=0.4\hsize]{img/o-nninterpo-a.png}
-%     \includegraphics[width=0.4\hsize]{img/o-cv2-b.png}
-%     \includegraphics[width=0.4\hsize]{img/o-nninterpo-b.png}
-%     \caption{Image results from resizing. Left images: 30x30 and 700x700 images reduced with Opencv's cubic interpolation. Right images: 30x30 and 700x700 images reduced with our nearest neighbor and Gaussian blur approach}
-%     \label{fig:resize-compare}
-% \end{figure}
 
 
 \subsection{Matching keypoints between two frames}
-\todolist{Explicar algoritmo de Matching nosso}
-% After the image is resized to our needs, a simple scale conversion function is implemented to convert from pixel values in the range of $[0, 255]$ to the range of the alphabet. Listing \ref{code:img_to_chars} presents the implementation.
-%  \begin{lstlisting}[language=Python, caption={Pixel to character scale converter}, label={code:img_to_chars}]
-% def image_to_chars(self, image, alphabet):
-%     #convert each pixel value to a letter in alphabet, based on bucket size
-%     bucket_size = 256 / (len(alphabet))
-%     pixels = list(np.asarray(image).flatten())
-%     chars = [alphabet[int(value/bucket_size)] for value in pixels]
-%     return ''.join(chars)
-% \end{lstlisting}
-% Table \ref{table:alphabet} lists the alphabets used in our tests.
 
-% \begin{table}[h!]
-% \centering
-% \begin{center}
-% \begin{tabular}{ |c|c| } 
-%  \hline
-%  Alphabets & Description \\
-%  \hline
-%  {[}'\#', '@', '\%', '=', '*', ':', '-', '.', ' '{]} & Default (required) \\ 
-%  \hline
-%  {[}'W', 'B', 'H', 'T', 'L', 'I', '.', ' '{]}  & Uppercase letters  \\
-%  \hline
-%  {[}'8', '6', '2', '1', '+', '-', '.', ' '{]} & Mathematical  \\ 
-%  \hline
-%  ['\}', ']', '|', '!', '"', ':', '.', ' '] & Vertical \\
-%  \hline
-%  ['\#', '=', '"', '\~','-', '\_', '.', ' '] & Horizontal \\
-%  \hline
-% \end{tabular}
-%  \label{table:alphabet}
-%  \caption{Alphabets used in experiments}
-% \end{center}
-% \end{table}
+To find the descriptors between two frames, we use the k-nearest neighbors (KNN) algorithm, this algorithm is widely used in the machine learning community and serves to detect similarities between objects. In this work, KNN was used to detect similarity between descriptors in different frames.
+
+The algorithm takes as parameter two descriptor vectors from SIFT and returns an index vector, also known as matches, which will be used to later retrieve keypoints in the two frames. In our implementation, KNN was used to find 2 clusters, as shown in Listing~\ref{code:least-squares}.
+
+
+ \begin{lstlisting}[language=Python, caption={K-nearest neighbors}, label={code:knn}]
+ def _knn_match(self, query, train, k):
+    """
+    Perform the match using knn
+
+    Keyword arguments:
+    query -- the query vector
+    train -- the training vector
+    k -- number of clusters
+    """
+
+    matches = []
+
+    # For each descriptor in the current
+    for i, q in enumerate(query):
+
+        # Get the k-nearest neighbors
+        neighbor = self._get_neighbors(train, q, k)
+
+        matches_knn = set()
+
+        # Create the k descriptor tuple
+        for n in neighbor:
+            matches_knn.add(Match(i, n[0], n[1]))
+
+        matches.append(matches_knn)
+
+    return matches
+
+def _get_neighbors(self, query, train, k):
+    """
+    Get the k-nearest neighbors
+
+    Keyword arguments:
+    query -- the query vector
+    train -- the training vector
+    k -- number of clusters
+    """
+
+    # Create the matrix of distances
+    distances = np.zeros((np.shape(query)[0], 2), dtype=np.int)
+
+    # For each pair, calculates the distance
+    for x, q in enumerate(query):
+        distances[x] = (x, euclidean_distance(train, q))
+
+    # Sort based on distance using numpy notation
+    distances = distances[distances[:, 1].argsort()]
+
+    neighbors = []
+
+    # Group in k clusteres
+    for x in range(k):
+        neighbors.append(distances[x])
+
+    return neighbors
+    
+\end{lstlisting}
+
+However, to compare points, one should use a distance metric. As we use SIFT to describe the points, the metric used was the distance $L_2$. In this implementation, we performed Hamming distance tests for BRIEF descriptors but chose to follow using SIFT.
+
+The option for 2 clusters was made from the SIFT documentation, where the author, Lowe, uses a threshold of 0.75 between the two clusters to verify the quality of the matches, as shown in Listing~\ref{code:matching}.
+
+\begin{lstlisting}[language=Python, caption={Matching Lowe's Criteria}, label={code:matching}]
+
+def match(self, query, train, k=2):
+    """
+    Match the query with the train using k-nearest neighbors
+
+    Keyword arguments:
+    query -- the query vector
+    train -- the training vector
+    k -- number of clusters
+    """
+
+    matches_knn = self._knn_match(query, train, k)
+
+    # Apply ratio test
+    matches = []
+    for m, n in matches_knn:
+        if m.distance < 0.75*n.distance:
+            matches.append(m)
+
+    return matches
+
+\end{lstlisting}
+
+In addition, a class called \textbf{Match()} was implemented to store the similarity between descriptors, as shown in Listing~\ref{code:match}. This class is composed of the indexes of both descriptors and a distance value for them.
+
+\begin{lstlisting}[language=Python, caption={Match Class}, label={code:match}]
+
+class Match:
+    """
+       A class used to store the match information
+
+       Methods
+       -------
+       """
+
+    def __init__(self, queryIdx, trainIdx, distance):
+        self.queryIdx = queryIdx
+        self.trainIdx = trainIdx
+        self.distance = distance
+
+\end{lstlisting}
+
+After implementing this code we ran several tests to validate the quality of the results. Below are shown two examples of matches between frames. Figure~\ref{fig:matches_0} shows the matches between the artificial frame and the first frame of the video.
+
+\begin{figure}[H]
+     \centering
+     \includegraphics[width=0.9\hsize]{img/matches_0.jpg}
+     \caption{Matches between the artifical frame and frame 0.}
+     \label{fig:matches_0}
+\end{figure}
+
+In Figure~\ref{fig:matches_1} we can see the matches between two frames of the video.
+
+\begin{figure}[H]
+     \centering
+     \includegraphics[width=0.9\hsize]{img/matches_1.jpg}
+      \caption{Matches between frame 0 and frame 1.}
+     \label{fig:matches_1}
+\end{figure}
+
+Therefore, the SIFT algorithm was able to detected the same points in both frames and the matching algorithm was able to select them based on their $L_2$ distance. The points are located in regions where the gradient is high, such as the notebook's borders, the letters and regions of high variation. Some points were also located in the wall and in the table, but they were the outliers.
+
 
 \subsection{Calculating the Affine Transform between two frames}
 
