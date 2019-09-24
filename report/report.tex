@@ -538,6 +538,19 @@ After extracting background and foreground portions, we just add the source tran
 
 \section{Experiments and Discussion}
 
+The \textbf{main.py} file executes our test pipeline. The idea is the following: for the input video (\textbf{input/i-0.mp4}), a target object in every frame of the input (\textbf{{input/i-2.jpg}}) is substituted by another image (\textbf{input/i-1.jpg}). To test two different strategies for mapping the target in the video, two execution stages are created: in one stage, the target is tracked comparing a pair of video frames ($frame_{i - 1}$ and $frame_{i}$), for every consecutive pair of frames (using the artificial frame for the first one). In the other stage, the frame ($frame_{i}$) is compared with the target. Figure \ref{fig:target-and-image} shows the input images. The results of each approach is listed in the following subsections.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.4\hsize]{../input/i-1.jpg}
+  \includegraphics[width=0.4\hsize]{../input/i-2.jpg}
+  \caption{Input images for AR solution. a) Image to be pasted in every frame b) Target Frame to be substituted in every frame.}
+  \label{fig:target-and-image}
+\end{figure}
+
+\subsection{Tracking the Target between video frames}
+
+\subsection{Tracking the Target comparing to the Artificial Frame}
 
 
 \section{Conclusion}
