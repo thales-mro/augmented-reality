@@ -62,11 +62,14 @@ In this section, it is presented the implemented algorithm in this project. The 
 \todolist{Explicar o arquivo AR}
 
 
-\subsection{Find interest points in a pair of frames}
+\subsection{Interest Points and Descriptors}
 \todolist{Explicar o SIFT nosso}
 
 
-\subsection{Matching keypoints between two frames}
+\subsection{Target Frame Detection}
+
+
+\subsection{Match Hypothesis}
 
 To find the descriptors between two frames, we use the k-nearest neighbors (KNN) algorithm, this algorithm is widely used in the machine learning community and serves to detect similarities between objects. In this work, KNN was used to detect similarity between descriptors in different frames.
 
@@ -197,7 +200,7 @@ In Figure~\ref{fig:matches_1} we can see the matches between two frames of the v
      \label{fig:matches_1}
 \end{figure}
 
-Therefore, the SIFT algorithm was able to detected the same points in both frames and the matching algorithm was able to select them based on their $L_2$ distance. The points are located in regions where the gradient is high, such as the notebook's borders, the letters and regions of high variation. Some points were also located in the wall and in the table, but they were the outliers.
+Therefore, the SIFT algorithm was able to detected the same points in both frames and the matching algorithm was able to select them based on their $L_2$ distance. The points are located in regions where the gradient is high, such as the notebook's borders, the letters and regions of high variation in texture. Some points were also located in the wall and in the table, but they were considered outliers.
 
 
 \subsection{Calculating the Affine Transform between two frames}
@@ -432,257 +435,113 @@ In order to evaluate the calculated Affine Transform matrix, equation \ref{eq:ma
 
     return n_match_points, unmatch_points_idx
 \end{lstlisting}
-% To generate the monochrome image, giving the converted characters and the output character dimension, it is up to writing each character in black color in an OpenCV image using the \textbf{cv2.putText} function, in a white background. To generate readable characters, each one occupies a space of 25 x 25 pixels in the image. Then the characters are printed equally-spaced. The listing \ref{code:mono-print} presents the implementation.
 
 
+\subsection{Video Augmentation}
 
-\subsection{Pasting image into target}
-\todolist{Explicar como colamos a imagem no target}
-% For the colored ASCII image, the process is similar to the monochrome. The difference is that we print colored characters in a black background. The color information is obtained before, as part of the resize process. The listing \ref{code:color-print} shows the differences in implementation (when compared to listing \ref{code:mono-print}.
+The video augmentation was performed by applying the affine matrix to each pixel of the source image. So that each pixel was mapped to their respective coordinates in the frame image. For this, the \textbf{warpAffine} method has been implemented as shown in Listing~\ref{code:warpAffine}.
 
-%  \begin{lstlisting}[language=Python, caption={Colored ASCII image generator}, label={code:color-print}]
-%     def print_ascii_image_colored(self, ascii_chars, original_colored_image, shape, font_scale):
-%         ...
-%         color_image = np.full((new_shape[0], new_shape[1], 3), 0, np.uint8)
-%         k = 0
-%         # Draw the text (colored image)
-%         for j in range(0, shape[0]):
-%             for i in range(0, shape[1]):
-%                 color = tuple([int(x) for x in original_colored_image[j][i]])
-%                 cv2.putText(color_image, ascii_chars[k],
-%                             ((i)*path_size, (j + 1)*path_size), font, font_scale, color, 1)
-%                 k += 1
+\begin{lstlisting}[language=Python, caption={Warp Affine Method}, label={code:warpAffine}]
+def _warpAffine(self, source, a_matrix, shape):
+    
+    # Define the new shape
+    new_shape = (shape[0], shape[1], 3)
+    
+    # Create the empty new image
+    new_image = np.zeros(new_shape, dtype=np.uint8)
+    
+    # Separate the rotation matrix
+    a = a_matrix[:,0:2]
+    
+    # Separate the translation matrix
+    b = a_matrix[:,2:3]
+    
+    # Convert to homogeneous coordinates
+    a = np.hstack((np.flip(a), np.flip(b)))
+    a = np.vstack((a, [0,0,1]))
+    
+    for y in range(source.shape[0]):
+        for x in range(source.shape[1]):
+            
+            # Build the point
+            p = np.array([y, x, 1])
 
-%         return color_image
-% \end{lstlisting}
+            # Apply the affine transformation
+            y_1, x_1, _ = np.matmul(a, p)
+            
+            if y_1 < 0:
+                y_1 = 0
+                
+            if x_1 < 0:
+                x_1 = 0
+            
+            if y_1 >= shape[0]:
+                y_1 = shape[0]-1
+                
+            if x_1 >= shape[1]:
+                x_1 = shape[1]-1
+            
+            new_image[int(y_1), int(x_1), :] = source[y, x, :]
+    
+    return new_image
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/convolutions-test/grayscale/o-3_convolution_opencv.png}
-%     \includegraphics[width=0.4\hsize]{../output/convolutions-test/grayscale/o-3_convolution_opencv.png}
-%     \caption{Grayscale convolution using 3x3 high-pass filter. a) Our convolution. b) OpenCv convolution.}
-%     \label{fig:convolution-1}
-% \end{figure}
+\end{lstlisting}
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/convolutions-test/rgb/o-7_convolution_opencv.png}
-%     \includegraphics[width=0.4\hsize]{../output/convolutions-test/rgb/o-o-7_convolution_opencv.png}
-%     \caption{RGB convolution using 7x7 low-pass filter. a) Our convolution. b) OpenCv convolution.}
-%     \label{fig:convolution-2}
-% \end{figure}
+This method receives an image that will be modified, a affine matrix in homogeneous coordinates and a dimension for the resulting image. The result of applying this method in our project is shown in Figure~\ref{fig:paste_0}.
 
-\section{Experiments}
-The \textbf{main.py} file executes our test pipeline. The idea is the following: for each input image, for each alphabet, for each output character resolution, generate the monochrome, colored using median filter and colored using Gaussian filter images.
-The output character resolution set was chosen to down and upsample some of the input images. The set is given in table \ref{table:resolutions}
+\begin{figure}[H]
+     \centering
+     \includegraphics[width=0.9\hsize]{img/paste_0.jpg}
+     \caption{Warp the source image with the same frame size as the target one.}
+     \label{fig:paste_0}
+\end{figure}
 
-\begin{table}[H]
-\centering
-\begin{center}
-\begin{tabular}{ |c| } 
- \hline
- Output character resolution (characters per line)\\
- \hline
- 32 \\ 
- \hline
- 100  \\
- \hline
-\end{tabular}
- \label{table:resolutions}
- \caption{Output character resolutions used in experiments.}
-\end{center}
-\end{table}
+The resulting image has the same dimensions as the video frame, making augmentation simpler as you simply apply a mask to both images to crop the backgound and foreground. In this case, we do not need to resize the source image, once we considered that same dimension as the frame, so the source image could be mapped exactly to the target position. The procedure for accomplishing this task is shown in Listing~\ref{code:augmentation}.
 
-The input images chosen are labeled as i-1-0 to i-1-5. Their general information is described in the Tables~\ref{table:inputs-1} and \ref{table:inputs-2}. They are also shown in Figure~\ref{fig:input-images}.
+\begin{lstlisting}[language=Python, caption={Augmentation algorithm}, label={code:augmentation}]
+# Warp the source image
+source = self._warpAffine(self.source, a_all, (current_frame.shape[0], current_frame.shape[1]))
 
-\begin{table}[H]
-\centering
-\begin{tabular}{ |c|c|c| } 
- \hline
- Label & Dimensions (pixels) & Sampling Type\\
- \hline
- i-1-0 & 750 x 563 & Downsample\\  
- \hline
- i-1-1 & 600 x 366 & Downsample\\
- \hline
- i-1-2 & 1200 x 1000 & Downsample\\
- \hline
- i-1-3 & 612 x 408 & Downsample\\
- \hline
- i-1-4 & 32 x 48 & Upsample \\
- \hline
- i-1-5 & 32 x 32 & Upsample\\
- \hline
-\end{tabular}
- \label{table:inputs-1}
- \caption{Input characteristics (part 1).}
-\end{table}
+# Warp the mask
+target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[0], current_frame.shape[1]))
 
-\begin{table}[H]
-\centering
-\begin{tabular}{ |c|c| } 
- \hline
- Label & General Description\\
- \hline
- i-1-0 & New York City view. Low variety of colors\\  
- \hline
- i-1-1 & Bear in the wild. Fading background\\
- \hline
- i-1-2 & Einstein. Detailed features in face \\
- \hline
- i-1-3 & Detailed flower. High variety of colors \\
- \hline
- i-1-4 & Monalisa. Small image. low variety of colors \\
- \hline
- i-1-5 & Bonobo. Small squared image \\
- \hline
-\end{tabular}
- \label{table:inputs-2}
- \caption{Input characteristics (part 2).}
-\end{table}
+# Convert it to gray scale
+target_mask_gray = cv2.cvtColor(target_mask, cv2.COLOR_BGR2GRAY)
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../input/i-1-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../input/i-1-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../input/i-1-2.jpg}
-%     \includegraphics[width=0.4\hsize]{../input/i-1-3.jpg}
-%     \includegraphics[width=0.4\hsize]{../input/i-1-4.jpg}
-%     \includegraphics[width=0.4\hsize]{../input/i-1-5.jpg}
-%     \caption{Input images used in experiments. a) i-1-0 (NYC). b) i-1-1 (Bear) c) i-1-2 (Einstein) d) i-1-3 (Flower) e) i-1-4 (Monalisa) f) i-1-5 (Bonobo)}
-%     \label{fig:input-images}
-% \end{figure}
+# Define the threshold to separate foreground from background
+_, mask = cv2.threshold(target_mask_gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-As the number of output images generated is high, they are grouped by folders in the specific way: Inside the \textbf{output} folder, the images that are downsampled and upsampled are separated. Inside each sampling folder (\textbf{upsampling} and \textbf{downsampling}), each \textbf{convolution-\{index\}} represents the operation for one specific input image. Inside of it there are two folders: \textbf{size-32} and \textbf{size-100}, indicading respective resolutions. Inside each resolution folder, there are the \textbf{grayscale}, \textbf{rgb-gaussian} and \textbf{rgb-median}. Inside each case, there are the images printed for the 5 alphabets, in the format \textbf{o-\{index\}}, where the index indicate the alphabet, in the same order as table \ref{table:alphabet}.  
+# Get the inverted mask
+mask_inv = cv2.bitwise_not(mask)
 
-\section{Discussion}
+# Get the background image
+background = cv2.bitwise_and(current_frame, current_frame, mask=mask)
 
-This section is organized in two parts. The first part analyses the result obtained using grayscale images with 4 different alphabets. The second part performs an analysis of the results obtained using color images.
+# Get the foreground image
+foregound = cv2.bitwise_and(source, source, mask=mask_inv)
 
-\subsection{Grayscale Images}
-
-The downsampling technique was applied to four grayscale images. Each image has been converted to 32- and 100-character output size. Also, these final images were represented using 4 different alphabets to provide a better insight into how character choice influenced the quality of the final image.
-
-In this subsection, we present an execution for The New York image, using four different types of alphabets with a 100-character output size, as shown in Figure~\ref{fig:grayscale-nyc}.
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-2.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-3.jpg}
-%     \caption{The New York output images with 100-characteres output size using different alphabets. a) Default alphabet. b) Uppercase alphabet. c) Mathematical alphabet. d)
-%     Vertical alphabet}
-%     \label{fig:grayscale-nyc}
-% \end{figure}
-
-It is observed that the used alphabet considerably affected the quality of the final image. The vertical alphabet had problems filling the area, making the representation less visually significant, while the other alphabets were able to present a better filling of the area. It was also observed that the upper letter alphabet has characters that represent well the texture of buildings presented in the New York image.
-
-The next execution consisted in applying an upsampling technique to two low-resolution images: Monaliza and Baboon. This procedure followed the same steps as the previous one, a grayscale image was upsampled for the desired output dimensions, which in this case was 100 characters. In this subsection, we will show the final Monaliza image for 4 different alphabets, as presented in Figure~\ref{fig:grayscale-monalisa}.
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-2.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-4/size-100/grayscale/o-3.jpg}
-%     \caption{Monaliza output images with 100-characters output size using different alphabets. a) Default alphabet. b) Uppercase alphabet. c) Mathematical alphabet. d)
-%     Vertical alphabet}
-%     \label{fig:grayscale-monalisa}
-% \end{figure}
-
-In both results, the quality was proportional to the number of characters in the representation of the final image. That is, the images that were converted to the output with 100 characters had higher quality than the others. This behavior was expected as more characters have finer control of quantization levels.
+# Add both images
+output_frame = cv2.add(background, foregound)
+\end{lstlisting}
 
 
-\subsection{RGB Images}
+The result after applying this procedure is the creation of a mask with the same dimensions as the target image that we want to crop from the frame. To perform this step it is necessary to assume that the mask has the same dimensions as the source image, that is, the affine transformations are also performed on the mask. This allows us to apply a threshold value and identify exactly where the mask should be. After that, we just apply a binary operator AND to define the foreground and background portions of the images, as shown in Figure~\ref{fig:paste_1}.
 
-For the RGB images, we can do similar comparisons to the mono case, except from the fact that besides the alphabet changing, the different resolutions and the up/downsample cases, we also have to analyze the difference of color picking with the gaussian and median filter. 
-\\For the difference between filters, we have some cases with output resolution 32 in figure \ref{fig:colored-filters-32} and for resolution 100 in figure \ref{fig:colored-filters-100}. As we can observe in the images we have only punctual differences in the images, indicating that both filters work similarly in general. We can also notice that the colors represented in the characters fit well the ones from the original image, validating our resize operations for the three channels. The image gets closer to the original when the character output is increased.
+\begin{figure}[H]
+     \centering
+     \includegraphics[width=0.9\hsize]{img/paste_1.jpg}
+      \caption{Extract the background using a mask.}
+     \label{fig:paste_1}
+\end{figure}
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-32/rgb-gaussian/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-32/rgb-median/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-32/rgb-gaussian/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-32/rgb-median/o-0.jpg}
-%     \caption{Output images with 32 characters to compare Gaussian and median filters, in same alphabet, for downsampled images. a) Gaussian of input image i-1-0. b) Median of input image i-1-0. c) Gaussian of input image i-1-3. d) Median of input image i-1-3}
-%     \label{fig:colored-filters-32}
-% \end{figure}
+After extracting background and foreground portions, we just add the source transformed image with the frame without the target image. After that, we repeat the whole process for each frame.
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-median/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-median/o-1.jpg}
-%     \caption{Output images with 100 characters to compare Gaussian and median filters, in same alphabet, for downsampled images. a) Gaussian of input image i-1-1. b) Median of input image i-1-1. c) Gaussian of input image i-1-2. d) Median of input image i-1-2}
-%     \label{fig:colored-filters-100}
-% \end{figure}
+\section{Experiments and Discussion}
 
-For upsampled images, the median is not executed in this case. So, even though the method is called, the output images for both cases are the same. Image \ref{fig:upsample-median} shows that case, for 32 characters resolution of i-4-0.
 
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/upsampling/convolution-0/size-32/rgb-gaussian/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/upsampling/convolution-0/size-32/rgb-median/o-1.jpg}
-%     \caption{Output images with 32 characters to compare Gaussian and median filters for upsampled images, in same alphabet. a) Gaussian of input image i-1-4. b) Median of input image i-1-4.}
-%     \label{fig:colored-filters-100}
-% \end{figure}
-
-When analyzing the difference between alphabets, we can see that, depending on the format of the features in the image, some alphabets look better than others. For example, as showed in figure \ref{fig:alphabets-colored-32}, alphabets with good filling per character(like the Default, Upper case and Mathematical) represents better the image than the ones that represents horizontal or vertical features. For other example, like the one in \ref{fig:alphabets-colored-100}, the Vertical alphabet is a good fit. 
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-1/size-100/rgb-gaussian/o-2.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-1/size-100/rgb-gaussian/o-3.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-0.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-3/size-100/rgb-gaussian/o-4.jpg}
-%     \caption{Output images with 32 characters to compare different alphabets. a) Gaussian of input image i-1-1, alphabet 2. b) Gaussian of input image i-1-1, alphabet 3. c) Gaussian of input image i-1-3, alphabet 0. d) Gaussian of input image i-1-3, alphabet 4.}
-%     \label{fig:alphabets-colored-32}
-% \end{figure}
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-3.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-0.jpg}
-%     \caption{Output images with 100 characters to compare different alphabets. a) Gaussian of input image i-1-0, alphabet 3. b) Gaussian of input image i-1-0, alphabet 0.}
-%     \label{fig:alphabets-colored-100}
-% \end{figure}
-
-\subsection{Comparison among grayscale, Gaussian and median filters}
-
-This subsection presents a comparison between different versions of the Bear and Einstein images, using grayscale, Gaussian and median filters for color extraction. Results for the Bear image are shown in Figure~\ref{fig:bear-100}.
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/grayscale/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-gaussian/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-0/size-100/rgb-median/o-1.jpg}
-%     \caption{Bear output images with 100 characters to compare grayscale,  Gaussian and median filters for color extraction in the same alphabet. a) Grayscale. b) Gaussian color. c) Median color.}
-%     \label{fig:bear-100}
-% \end{figure}
-
-% Also, we present a visual comparison for the Einstein image, as shown in Figure~\ref{fig:einstein-100}.
-
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/grayscale/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/rgb-gaussian/o-1.jpg}
-%     \includegraphics[width=0.4\hsize]{../output/downsampling/convolution-2/size-100/rgb-median/o-1.jpg}
-%     \caption{Einstein output images with 100 characters to compare grayscale,  Gaussian and median filters for color extraction in the same alphabet. a) Grayscale. b) Gaussian color. c) Median color.}
-%     \label{fig:einstein-100}
-% \end{figure}
 
 \section{Conclusion}
  
-The application of conversion techniques from colorful or grayscale images to images composed only of ASCII characters allowed us to understand some image manipulation methods such as downsample and upsample. Each of these methods is implemented by applying specific filters to reduce or increase the image dimensions.
-
-While doing this work, the use of different alphabets provided insight that there are combinations of characters best suited for some types of images, so there is no perfect alphabet to represent all kinds of images. Therefore, the alphabet must be determined from the requirements of the application.
-
-The use of several images of different sizes allowed us to observe differences in terms of performance, the execution of the whole pipeline was extremely slow, mainly due to the use of our convolution operation.
- 
-Also, the execution of this work provided a better understanding of how the convolution operation is implemented since we could not use it from any package. The application of convolution with high-pass and low-pass filters allow us to understand how the signal frequency impacts the image result, either in noise attenuation or edge detection.
-
   
 
 \end{document}

@@ -225,8 +225,8 @@ class AR:
                 
                 # Save the frame as an image
                 if True:
-                    #numpy_horizontal = np.hstack((current_frame, output_frame))
-                    cv2.imwrite(f"output/frame-{index}.jpg", output_frame)
+                    numpy_horizontal = np.hstack((background, foregound))
+                    cv2.imwrite(f"output/frame-{index}.jpg", numpy_horizontal)
 
                 index += 1
 
