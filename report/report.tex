@@ -7,6 +7,7 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{amsmath}
+\usepackage{hyperref}
 \usepackage{url}
 %listings settings
 \definecolor{codegreen}{rgb}{0,0.6,0}
@@ -60,7 +61,18 @@ In this section, it is presented the implemented algorithm in this project. The 
 
 
 \subsection{Implementation of the Pipeline}
-\todolist{Explicar o arquivo AR}
+
+The pipeline was implemented in the AR() class and consists of the following steps:
+
+\begin{itemize}
+  \item loading the video and processing it frame-by-frame;
+  \item loading target and source images;
+  \item detection and description of keypoints for each frame using SIFT;
+  \item matching the keypoints for each frame pair using the k-nearest neighbors algorithm;
+  \item affine matrix calculation using the least squares and RANSAC algorithms;
+  \item applying the transformations to the source image in each frame;
+  \item separation of the target image from the frame and replace with the transformed source image. 
+\end{itemize}
 
 
 \subsection{Interest Points and Descriptors}
@@ -92,6 +104,12 @@ In this section, it is presented the implemented algorithm in this project. The 
 
 
 \subsection{Target Frame Detection}
+
+Our video was recorded in an environment with little interference from other objects, so the detection of the keypoint became easier. From this, the target image was provided a priori to the algorithm as an initial artificial frame.
+
+The application of SIFT to this artificial frame resulted in the identification of the keypoints that would later be located in subsequent frames. For this, it was assumed that the target image was at the origin of its coordinate system, so calculating the transformations always mapped the target image to their respective points in the following frames.
+
+The target image was provided in the portrait position, so we knew a priori which points corresponded to the upper and lower corners. The perfect alignment of the source image with the target was achieved by creating a rectangular matrix with the same dimensions as the target image, serving as a mask throughout the process. Thus, it was possible to extract the target image from the frame and perform the addition of the source image, considering the rectangular shape of both.
 
 
 \subsection{Match Hypothesis}
