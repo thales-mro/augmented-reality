@@ -663,7 +663,7 @@ RANSAC and Least Squares            & Thales        \\ \hline
 
 \section{Conclusion}
 
-In this work, an augmented reality algorithm was implemented to insert an image into a specific portion of a video. For this, a feature detection and description algorithms were developed, we chose to use SIFT because it has a lot of material available, also, this algorithm provides a higher detection quality than the others.
+In this work, an augmented reality algorithm was implemented to insert an image into a specific portion of a video. For this, a feature detection and description algorithms were developed, we chose to use SIFT because it has a lot of material available, also, this algorithm provides a higher detection quality than the others. Our implementation of SIFT did not succeed, therefore we tested the execution pipeline with OpenCV's implementation.
 
 In addition, a matching algorithm was implemented. In this work, k-nearest neighbors were implemented using two clusters. After the matches were found, the affine transformations matrix was found, using RANSAC, both algorithms were implemented, as well as the calculation of iterations. For matrix estimation, the least-squares algorithm was also implemented.
 
