@@ -42,60 +42,63 @@ class AR:
         self.initial_target_mask = np.ones_like(self.target)*255
 
 
-    def _warpAffine(self, source, a_matrix, shape):
+    def _warpAffine(self, source, a, shape):
+        """
+        It warps the image using an affine matrix
+        
+        Keyword arguments:
+        source -- source image
+        a -- affine matrix
+        shape -- new image shape
+        """
         
         # Define the new shape
-        new_shape = (shape[0], shape[1], 3)
+        new_shape = (shape[1], shape[0], 3)
         
         # Create the empty new image
         new_image = np.zeros(new_shape, dtype=np.uint8)
         
-        # Separate the rotation matrix
-        a = a_matrix[:,0:2]
-        
-        # Separate the translation matrix
-        b = a_matrix[:,2:3]
-        
-        # Convert to homogeneous coordinates
-        a = np.hstack((np.flip(a), np.flip(b)))
-        a = np.vstack((a, [0,0,1]))
-        
-        for y in range(source.shape[0]):
-            for x in range(source.shape[1]):
+        for x in range(source.shape[1]):
+            for y in range(source.shape[0]):
                 
                 # Build the point
-                p = np.array([y, x, 1])
+                p = np.array([x, y, 1])
 
                 # Apply the affine transformation
-                y_1, x_1, _ = np.matmul(a, p)
+                x_1, y_1, _ = np.matmul(a, p)
                 
-                if y_1 < 0:
-                    y_1 = 0
-                    
+                # Check if the transform is inside the frame
                 if x_1 < 0:
                     x_1 = 0
-                
-                if y_1 >= shape[0]:
-                    y_1 = shape[0]-1
                     
-                if x_1 >= shape[1]:
-                    x_1 = shape[1]-1
+                if y_1 < 0:
+                    y_1 = 0
                 
+                if x_1 >= new_image.shape[1]:
+                    x_1 = new_image.shape[1]-2
+                    
+                if y_1 >= new_image.shape[0]:
+                    y_1 = new_image.shape[0]-2
+                
+                # Index the new image
                 new_image[int(y_1), int(x_1), :] = source[y, x, :]
         
         return new_image
     
 
-    def execute(self, input_path, output_path, operation, max_frames=-1, min_matches=5):
+    def execute(self, input_path, output_path, operation=2, compare_frame_by_frame=True, start_frame=-1, max_frames=-1, print_frames=False, min_matches=5):
         """
         It executes the ar for a video file
 
         Keyword arguments:
         input_path -- the input video path
         output_path -- the output video path
-        operation -- operation to apply o nthe frame
+        operation -- operation to apply on the frame
+        compare_frame_by_frame -- compare fram by frame
+        start_frame -- starting video frame
         max_frames -- maximum number of frames to process
-        min_matches -- minimum number os matches to find the homography matrix
+        print_frames -- flag to print the current frame
+        min_matches -- minimum number os matches to find the affine matrix
         """
 
         # The accumulative affine matrix
@@ -128,12 +131,16 @@ class AR:
         keypoints_previous_frame, descriptors_previous_frame = self.sift.detectAndCompute(
             previous_frame, None)
 
-        img_aux = np.zeros_like(previous_frame)
-        cv2.drawKeypoints(previous_frame, keypoints_previous_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        cv2.imwrite('sift_keypoints.jpg', img_aux)
-
-        index = 0
+        # Create the affine transform
         transform = at.AffineTransform(0.99, 0.125, 0.1)
+        
+        index_2 = 0
+        while success and index_2 < start_frame:
+            success, current_frame = video_capture.read()
+            index_2 += 1 
+        
+        index = 0
+        
         # For each frame
         while success:
 
@@ -142,10 +149,6 @@ class AR:
             # Compute keypoints and descriptors of the current frame
             keypoints_current_frame, descriptors_current_frame = self.sift.detectAndCompute(
                 current_frame, None)
-
-            img_aux = np.zeros_like(current_frame)
-            cv2.drawKeypoints(current_frame, keypoints_current_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-            cv2.imwrite('sift_keypoints_cf.jpg', img_aux)
 
             # Find the matches between the previous frame and the current frame
             matches = self.matcher.match(descriptors_previous_frame, descriptors_current_frame, k=2)
@@ -166,17 +169,13 @@ class AR:
                 a = transform.get_affine_transform_matrix(previous_frame_points, current_frame_points)
 
                 # Set the accumulative transformations
-                if a_all is None:
-                    a_all = a
+                if a_all is None or compare_frame_by_frame == False:
+                    a_all = np.vstack((a, [0,0,1]))
                 elif np.sum(a) > 0:
                     
                     # Convert to homogeneous coordinates
-                    j = np.vstack((a_all, [0,0,1]))
                     i = np.vstack((a, [0,0,1]))
-                    k = np.matmul(j,i)
-                    
-                    # Return to euclidean coordinates
-                    a_all = k[0:2,:]
+                    a_all = np.matmul(a_all, i)
 
                 if operation == 0:
                     
@@ -188,18 +187,18 @@ class AR:
                         previous_frame.copy(), keypoints_previous_frame,
                         current_frame.copy(), keypoints_current_frame,
                         [matches_opencv], None, flags=2)
-                elif operation == 1:
-                    # Draw the rectangle around the target image
-                    output_frame = cv2.polylines(
-                        current_frame.copy(), [np.int32(target_edges)], True, 255, 3, cv2.LINE_AA)
 
+                elif operation == 1:
+                    img_aux = np.zeros_like(current_frame)
+                    cv2.drawKeypoints(current_frame, keypoints_current_frame, img_aux, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                    current_frame = img_aux
                 elif operation == 2:
                                         
                     # Warp the source image
-                    source = self._warpAffine(self.source, a_all, (current_frame.shape[0], current_frame.shape[1]))
+                    source = self._warpAffine(self.source, a_all, (current_frame.shape[1], current_frame.shape[0]))
                     
                     # Warp the mask
-                    target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[0], current_frame.shape[1]))
+                    target_mask = self._warpAffine(self.initial_target_mask, a_all, (current_frame.shape[1], current_frame.shape[0]))
 
                     # Convert it to gray scale
                     target_mask_gray = cv2.cvtColor(target_mask, cv2.COLOR_BGR2GRAY)
@@ -223,10 +222,9 @@ class AR:
                 # Write each frame to a new video
                 video_out.write(output_frame)
                 
-                # Save the frame as an image
-                if True:
-                    numpy_horizontal = np.hstack((background, foregound))
-                    cv2.imwrite(f"output/frame-{index}.jpg", numpy_horizontal)
+                # Save the current frame as an image
+                if print_frames:
+                    cv2.imwrite(f"output/frame-{index}.jpg", output_frame)
 
                 index += 1
 
@@ -236,9 +234,10 @@ class AR:
             # Set the previous frame
             previous_frame = current_frame
 
-            # Set the previous keypoints and descriptors
-            keypoints_previous_frame = keypoints_current_frame
-            descriptors_previous_frame = descriptors_current_frame
+            if compare_frame_by_frame:
+                # Set the previous keypoints and descriptors
+                keypoints_previous_frame = keypoints_current_frame
+                descriptors_previous_frame = descriptors_current_frame
 
             # Read the next frame
             success, current_frame = video_capture.read()

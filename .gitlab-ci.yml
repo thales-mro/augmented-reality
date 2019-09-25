@@ -9,7 +9,8 @@ before_script:
 
 stages:
   - build
-  - exec
+  - exec_frame
+  - exec_source
 #  - report
 
 build:
@@ -21,11 +22,20 @@ build:
       - bin/*
       
 # This stage executes our program
-exec:
-  stage: exec
+exec_frame:
+  stage: exec_frame
   script:
     # Note that instead of the makefile you can just call your executable here
-    - make exec
+    - make exec_frame
+  artifacts:
+    paths:
+      - output/*
+      
+exec_source:
+  stage: exec_source
+  script:
+    # Note that instead of the makefile you can just call your executable here
+    - make exec_source
   artifacts:
     paths:
       - output/*

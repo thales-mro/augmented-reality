@@ -20,9 +20,13 @@ build:
 	$(CP) $(SRC) $(BIN_FOLDER)
 
 # RUN COMMAND
-exec:
+exec_frame:
 	$(MKDIR) $(OUTPUT_FOLDER)
-	$(PYTHON) $(MAIN) -a $(INPUT_FOLDER) -o $(OUTPUT_FOLDER) #here you can add more args
+	$(PYTHON) $(MAIN) --frame
+	
+exec_source:
+	$(MKDIR) $(OUTPUT_FOLDER)
+	$(PYTHON) $(MAIN) --source
 
 # CLEAN COMMAND
 clean:
