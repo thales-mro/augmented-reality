@@ -25,7 +25,7 @@ def main():
         output_name = "o-1.mp4"    
 
     # Generate the ar video
-    ar.execute("input/i-0.mp4", "output/" + output_name, compare_frame_by_frame=bool(args.comparison), max_frames=50)
+    ar.execute("input/i-0.mp4", "output/" + output_name, compare_frame_by_frame=bool(args.comparison), max_frames=10)
 
 
 main()
