@@ -52,5 +52,3 @@ report:
   artifacts:
     paths:
       - report.pdf
-  dependencies:
-    - exec
