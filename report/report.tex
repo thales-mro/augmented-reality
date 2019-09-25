@@ -62,7 +62,7 @@ In this section, it is presented the implemented algorithm in this project. The 
 
 \subsection{Implementation of the Pipeline}
 
-The pipeline was implemented in the AR() class and consists of the following steps:
+The pipeline for processing the video was implemented in the AR() class and consists of the following steps:
 
 \begin{itemize}
   \item loading the video and processing it frame-by-frame;
@@ -76,7 +76,7 @@ The pipeline was implemented in the AR() class and consists of the following ste
 
 
 \subsection{Interest Points and Descriptors}
-\section{SIFT}
+
  The SIFT feature detection algorithm was chosen to extract the descriptors from each frame of the video. The reason for SIFT is that it's robust and can detect features invariant to translation, rotation and scale. It compares different image sizes to look for \textit{keypoints}. For this, a pyramid of Gaussian is generated (and an example can be seen at Fig. \ref{fig:gp}) and then the difference between the pyramid layers is calculated to generate a new octave with lesser information to look at. This new octave is called Difference of Gaussian.
  
  \begin{figure}[H]
@@ -92,7 +92,7 @@ The pipeline was implemented in the AR() class and consists of the following ste
  
  After that each is shifted a bit to represent better its position between the layers and to calculate Hessian (used further to discard edges) and it's coordinates are converted to polar. This way, the description collected is about it's surroundings in a radius an direction of it's resultant gradient. The keypoints with low contrast or with a descriptor that looks like an edge instead of corner are discarded using a contrast threshold set to $0.025$.
  
- The Fig. \ref{fig:keypoints} show a comparison between the features detected with OpenCV's SIFT and the SIFT implemented in this work. The foundation of the code was extracted from the following three main sources: the sift paper, the OpenCV explanation\footnote{Introduction to SIFT (Scale-Invariant Feature Transform) \url{<https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_sift_intro/py_sift_intro.html>} accessed on 24/09/2019} and a python tutorial\footnote{Implementing SIFT in Python \url{<https://medium.com/@lerner98/implementing-sift-in-python-36c619df7945>} accessed on 24/09/2019}. The best configuration for SIFT parameter used in the project was: layers of octave = 17, number os octave = 4, sigma=1.6, and contrast threshold = 0.025.
+ The Figure~\ref{fig:keypoints} show a comparison between the features detected with OpenCV's SIFT and the SIFT implemented in this work. The foundation of the code was extracted from the following three main sources: the sift paper, the OpenCV explanation\footnote{Introduction to SIFT (Scale-Invariant Feature Transform) \url{<https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_sift_intro/py_sift_intro.html>} accessed on 24/09/2019} and a python tutorial\footnote{Implementing SIFT in Python \url{<https://medium.com/@lerner98/implementing-sift-in-python-36c619df7945>} accessed on 24/09/2019}. The best configuration for SIFT parameter used in the project was: layers of octave = 17, number of octave = 4, sigma = 1.6, and contrast threshold = 0.025.
  
  \begin{figure}
      \centering
@@ -594,16 +594,50 @@ The input video has the following characteristics: starting the target in the ce
 
 \subsection{Tracking the Target between video frames}
 
-\todolist{Colocar Resultados e exemplos de imagens}
+The first test performed was to execute the video augmentation using the frame-by-frame criteria to calculate the affine transformation. As we can see from Figure~\ref{fig:frame-by-frame}, the quality of the image paste gets worse as the frames are sequentially changed.
 
-As we can see from figures \ref{fig:figure}, the quality of the image paste gets worse as the frames are sequentially changed. The paste area gets descentralized from the target frame, and the pasted image distorted.
-Considering the fact that we are using the Affine Transform to track the target frame from one video frame to the other, we have accumulated error during execution, as, for example, the Affine transform of frame $i + 2$ depends on the Affine Transform of frame $i$ to $i + 1$ and the one of frmae $i + 1$ to $i + 2$, and each Affine Transform has an associated error within its calculation (number of RANSAC iterations, incapability of removing bad matching candidates, inconsistencies on calculated keypoints). Also, as we use an Affine Transform, it deals with limited number of degrees of freedom, considering the camera movement and frame distortion (the recorded video might insert camera movements that could only be correctly estimated in using a projection transform).
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.31\hsize]{img/frame-by-frame_0.jpg}
+  \includegraphics[width=0.31\hsize]{img/frame-by-frame_1.jpg}
+  \includegraphics[width=0.31\hsize]{img/frame-by-frame_2.jpg}
+  \caption{Augmented images compared frame-by-frame.}
+  \label{fig:frame-by-frame}
+\end{figure}
+
+ The paste area gets descentralized from the target frame, and the pasted image distorted.
+Considering the fact that we are using the Affine Transform to track the target frame from one video frame to the other, we have accumulated error during execution, as, for example, the Affine transform of frame $i + 2$ depends on the Affine Transform of frame $i$ to $i + 1$ and the one of frame $i + 1$ to $i + 2$, and each Affine Transform has an associated error within its calculation (number of RANSAC iterations, incapability of removing bad matching candidates, inconsistencies on calculated keypoints). Also, as we use an Affine Transform, it deals with limited number of degrees of freedom, considering the camera movement and frame distortion (the recorded video might insert camera movements that could only be correctly estimated in using a projection transform).
 
 \subsection{Tracking the Target comparing to the Artificial Frame}
 
-\todolist{Colocar Resultados e exemplos de imagens}
+In order to decrease the error across all the frames, we perform this test comparing the frame with its artificial one. From Figure~\ref{fig:frame-by-source}, comparing to the previous case, we can see an improvement of the pasting result.
 
-From figures \ref{fig:figure}, comparing to the previous case, we can see an improvement of the pasting result. As we do not have error accumulation from one frame to the other, the transform deals better with the target movement. It is still present some error due to degree of freedom limitation of the Affine Transform. 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.31\hsize]{img/frame-source_0.jpg}
+  \includegraphics[width=0.31\hsize]{img/frame-source_1.jpg}
+  \includegraphics[width=0.31\hsize]{img/frame-source_2.jpg}
+  \caption{Augmented images compared frame-by-source.}
+  \label{fig:frame-by-source}
+\end{figure}
+
+As we do not have error accumulation from one frame to the other, the transform deals better with the target movement. It is still present some error due to degree of freedom limitation of the Affine Transform. 
+
+\section{Contribution Matrix}
+
+The contribution of each author is presented below.
+
+\begin{table}[H]
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Task}                       & \textbf{Author} \\ \hline
+SIFT Implementation                 & Leonardo      \\ \hline
+Target Frame and Video Augmentation & Iury          \\ \hline
+Matching Algorithm                  & Iury          \\ \hline
+Affine Transformation               & Thales        \\ \hline
+RANSAC and Least Squares            & Thales        \\ \hline
+\end{tabular}
+\end{table}
 
 \section{Conclusion}
  
