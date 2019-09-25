@@ -77,7 +77,7 @@ The pipeline for processing the video was implemented in the AR() class and cons
 
 \subsection{Interest Points and Descriptors}
 
- The SIFT feature detection algorithm was chosen to extract the descriptors from each frame of the video. The reason for SIFT is that it's robust and can detect features invariant to translation, rotation and scale. It compares different image sizes to look for \textit{keypoints}. For this, a pyramid of Gaussian is generated (and an example can be seen at Fig. \ref{fig:gp}) and then the difference between the pyramid layers is calculated to generate a new octave with lesser information to look at. This new octave is called Difference of Gaussian.
+  The SIFT feature detection algorithm was chosen to extract the descriptors from each frame of the video. The reason for SIFT is that it's robust and can detect features invariant to translation, rotation and scale. It compares different image sizes to look for \textit{keypoints}. For this, a pyramid of Gaussian is generated (and an example can be seen at Fig. \ref{fig:gp}) and then the difference between the pyramid layers is calculated to generate a new octave with lesser information to look at. This new octave is called Difference of Gaussian.
  
  \begin{figure}[H]
      \centering
@@ -92,15 +92,31 @@ The pipeline for processing the video was implemented in the AR() class and cons
  
  After that each is shifted a bit to represent better its position between the layers and to calculate Hessian (used further to discard edges) and it's coordinates are converted to polar. This way, the description collected is about it's surroundings in a radius an direction of it's resultant gradient. The keypoints with low contrast or with a descriptor that looks like an edge instead of corner are discarded using a contrast threshold set to $0.025$.
  
- The Figure~\ref{fig:keypoints} show a comparison between the features detected with OpenCV's SIFT and the SIFT implemented in this work. The foundation of the code was extracted from the following three main sources: the sift paper, the OpenCV explanation\footnote{Introduction to SIFT (Scale-Invariant Feature Transform) \url{<https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_sift_intro/py_sift_intro.html>} accessed on 24/09/2019} and a python tutorial\footnote{Implementing SIFT in Python \url{<https://medium.com/@lerner98/implementing-sift-in-python-36c619df7945>} accessed on 24/09/2019}. The best configuration for SIFT parameter used in the project was: layers of octave = 17, number of octave = 4, sigma = 1.6, and contrast threshold = 0.025.
+ The Fig. \ref{fig:keypoints} show a comparison between the features detected with OpenCV's SIFT and the SIFT implemented in this work. The foundation of the code was extracted from the following three main sources: the sift paper, the OpenCV explanation\footnote{Introduction to SIFT (Scale-Invariant Feature Transform) \url{<https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_sift_intro/py_sift_intro.html>} accessed on 24/09/2019} and a python tutorial\footnote{Implementing SIFT in Python \url{<https://medium.com/@lerner98/implementing-sift-in-python-36c619df7945>} accessed on 24/09/2019}. The best configuration for SIFT parameter used in the project was: layers of octave = 17, number of octave = 4, sigma = 1.6, and contrast threshold = 0.025.
  
- \begin{figure}
+ \begin{figure}[H]
      \centering
      \includegraphics[width=0.4\hsize]{img/o-kp-0.png}
      \includegraphics[width=0.4\hsize]{img/o-kp-1.png}
      \caption{Keypoints extracted (colorful circles) on the original template. On the left, the result from the SIFT implemented in this project. On the right, the features extracted using OpenCV's library}
      \label{fig:keypoints}
  \end{figure}
+
+ After some tests, the SIFT implementations showed some good keypoints detection. In Fig. \ref{fig:keypoints} it shows the keypoints detected and even though it didn't catch as many as OpenCV's sift, it looked well enough. So, the descriptors get changed to the format expected by the matching part. The keypoints got converted to KeyPoint object from OpenCV and the features for a concatenated version instead of split by octave layer. The matcher would be able to find the matches and the threshold of 5 min matches would me satisfied.
+
+ The problem is that even the information about the descriptors could match from one frame to another, the information wasn't relevant enough to calculate the transformations, so after the keypoint extraction and matching, the transform got really wrong.
+
+ More test was made with the extractor, but apparently the project's SIFT, although it extract some relevant keyponts, the information around them showed themselves too poor and it provide false-positives, so no progress was made that could be compared to OpenCV's SIFT.
+
+ The Fig. \ref{fig:keypoints_arrow}
+\begin{figure}[H]
+     \centering
+     \includegraphics[width=0.4\hsize]{img/o-kp-arrows-0.png}
+     \includegraphics[width=0.4\hsize]{img/o-kp-arrows-1.png}
+     \caption{Comparison between keypoints when drawn with orientation and radius. In the left, the SIFT implemented in code has just really small points. In the right, OpenCV's SIFT }
+     \label{fig:keypoints_arrow}
+ \end{figure}
+
 
 
 \subsection{Target Frame Detection}
