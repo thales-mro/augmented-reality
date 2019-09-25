@@ -50,7 +50,7 @@
   \maketitle
   
   \begin{abstract}
-    In this project, we were given the task of performing Augmented Reality (AR) task in media, in this case, a video. The goal was to make an image appear in every single frame of the video, in this case, a specific target on the video is always substituted by the image, while the camera changes position, orientation and focal distance. In order to fulfill the requirements, the algorithm implemented deals with image descriptors for every frame pair to find the target, a matching algorithm to hypothesize matches and a RANSAC with least squares methodology to calculate the transform between frames. We were able to generate AR video, and the limitations of our implementation are explained in this report.
+    In this project, we were given the task of performing Augmented Reality (AR) task in media, in this case, a video. The goal was to make an image appear in every single frame of the video, in this case, a specific target on the video is always substituted by the image, while the camera changes position, orientation and focal distance. In order to fulfill the requirements, the algorithm implemented deals with image descriptors for every frame pair to find the target, a matching algorithm to hypothesize matches and a RANSAC with least squares methodology to calculate the transform between frames. We were able to generate AR video for testing purposes, even though our SIFT implementation was inadequate, and the limitations of our implementation are explained in this report.
   \end{abstract}
   
 \section{Introduction}
@@ -104,10 +104,11 @@ The pipeline for processing the video was implemented in the AR() class and cons
 
 
 \subsection{Target Frame Detection}
+As mentioned in the previous subsection, as our SIFT implementation proved to be inadequate, the group decided to use OpenCV's implementation of SIFT to test the sequential sets in the pipeline.
 
 Our video was recorded in an environment with little interference from other objects, so the detection of the keypoint became easier. From this, the target image was provided a priori to the algorithm as an initial artificial frame.
 
-The application of SIFT to this artificial frame resulted in the identification of the keypoints that would later be located in subsequent frames. For this, it was assumed that the target image was at the origin of its coordinate system, so calculating the transformations always mapped the target image to their respective points in the following frames.
+The application of OpenCV's SIFT to this artificial frame resulted in the identification of the keypoints that would later be located in subsequent frames. For this, it was assumed that the target image was at the origin of its coordinate system, so calculating the transformations always mapped the target image to their respective points in the following frames.
 
 The target image was provided in the portrait position, so we knew a priori which points corresponded to the upper and lower corners. The perfect alignment of the source image with the target was achieved by creating a rectangular matrix with the same dimensions as the target image, serving as a mask throughout the process. Thus, it was possible to extract the target image from the frame and perform the addition of the source image, considering the rectangular shape of both.
 
@@ -243,7 +244,7 @@ In Figure~\ref{fig:matches_1} we can see the matches between two frames of the v
      \label{fig:matches_1}
 \end{figure}
 
-Therefore, the SIFT algorithm was able to detected the same points in both frames and the matching algorithm was able to select them based on their $L_2$ distance. The points are located in regions where the gradient is high, such as the notebook's borders, the letters and regions of high variation in texture. Some points were also located in the wall and in the table, but they were considered outliers.
+Therefore, the SIFT algorithm was able to detect the same points in both frames and the matching algorithm was able to select them based on their $L_2$ distance. The points are located in regions where the gradient is high, such as the notebook's borders, the letters and regions of high variation in texture. Some points were also located in the wall and in the table, but they were considered outliers.
 
 
 \subsection{Calculating the Affine Transform between two frames}
@@ -343,7 +344,7 @@ Listing \ref{code:least-squares} shows our implementation of the Least Squares t
     return a
 \end{lstlisting}
 
-Considering that not necessarily all the candidates are suitable (as mentioned before), we use RANSAC (Random Sample Consensus) to estimate valid candidates for solving the system. This algorithm picks 3 random candidate matches, solves the $A$ matrix using Least Squares and evaluates if $A$ is good by testing it with the candidates themselves. If the calculated $A$ is the best, it holds that $A$. It executes the algorithm $k$ times, removing bad matches from the candidates to be picked to solve $A$ after every good $A$ fit. After $k$ times, it executes Least Squares algorithm one last time to all remaining match candidates to find best possible $A$ for the set, and returns it. Following subsections explain in a more detailed way the full implementation. The RANSAC algorithm explained here is shown in listing \ref{code:ransac}
+Considering that not necessarily all the candidates are suitable (as mentioned before), we use RANSAC (Random Sample Consensus) to estimate valid candidates for solving the system. This algorithm picks 3 random candidate matches, solves the $A$ matrix using Least Squares and evaluates whether $A$ is good by testing it with the candidates themselves. If the calculated $A$ is better than our previous best, it holds that $A$. It executes the algorithm $k$ times, removing bad matches from the candidates to be picked to solve $A$ after every best $A$ fit that is greater than a threshold. After $k$ times, it executes Least Squares algorithm one last time to all remaining match candidates to find best possible $A$ for the set, and returns it. Following subsections explain in a more detailed way the full implementation. The RANSAC algorithm explained here is shown in listing \ref{code:ransac}.
 
 \begin{lstlisting}[language=Python, caption={RANSAC to estimate Affine Transformation Matrix}, label={code:ransac}]
   def get_affine_transform_matrix(self, previous_f_points, current_f_points):
@@ -441,8 +442,10 @@ Considering that not necessarily all the candidates are suitable (as mentioned b
       self._n_ransac_iterations = int(math.ceil(n))
   \end{lstlisting}
 
+  It was decided to go for a probability of inliers of $12.5\%$ considering the fact that for the first frame (the artificial one), there are a great number of inliers when compared to the video frame, and also the fact that it was expected to get low number of good candidate matches from our SIFT implementation. 
+
 \subsubsection{Evaluate calculated Affine Transform Matrix}
-In order to evaluate the calculated Affine Transform matrix, equation \ref{eq:mat} is solved for the $X$ candidate points from the previous frame and the $A$ matrix, and then the $Y$ points are evaluated using the candidate points from the current frame using the distance between each of them. These distances are then normalized and the ones smaller than a threshold are considered correct matches. The number of matches and the indexes of not matched points are returned to the main RANSAC algorithm. Listing \ref{code:eval} shows the implementation of the method. 
+In order to evaluate the calculated Affine Transform matrix, equation \ref{eq:mat} is solved for the $X$ candidate points from the previous frame and the $A$ matrix, and then the $Y$ points are evaluated using the candidate points from the current frame using the distance between each of them. These distances are then normalized and the ones smaller than a threshold are considered correct matches. The number of matches and the indexes of not matched points are returned to the main RANSAC algorithm. Listing \ref{code:eval} shows the implementation of the method. The threshold used here is $10\%$.
 
 \begin{lstlisting}[language=Python, caption={Evaluates calculated Affine Transform matrix}, label={code:eval}]
   def _matches_based_on_affine_matrix(self, previous_points, current_points, a):
@@ -582,6 +585,9 @@ After extracting background and foreground portions, we just add the source tran
 \section{Experiments and Discussion}
 
 The \textbf{main.py} file executes our test pipeline. The idea is the following: for the input video (\textbf{input/i-0.mp4}), a target object in every frame of the input (\textbf{{input/i-2.jpg}}) is substituted by another image (\textbf{input/i-1.jpg}). To test two different strategies for mapping the target in the video, two execution stages are created: in one stage, the target is tracked comparing a pair of video frames ($frame_{i - 1}$ and $frame_{i}$), for every consecutive pair of frames (using the artificial frame for the first one). In the other stage, the frame ($frame_{i}$) is compared with the target. Figure \ref{fig:target-and-image} shows the input images. The results of each approach is listed in the following subsections.
+
+As mentioned before, the group was not able to implement a correct version of SIFT. In order to test the rest of the pipeline implementation, OpenCV's implementation of SIFT is used. 
+
 The input video has the following characteristics: starting the target in the central region of the video, perform camera translations from left to right, perform a zoom-out, top-down translations, clock-wise rotation (full path), zoom-in, counterclock-wise rotation. The duration of the video is approximately 20 seconds.
 
 \begin{figure}[H]
@@ -606,7 +612,7 @@ The first test performed was to execute the video augmentation using the frame-b
 \end{figure}
 
  The paste area gets descentralized from the target frame, and the pasted image distorted.
-Considering the fact that we are using the Affine Transform to track the target frame from one video frame to the other, we have accumulated error during execution, as, for example, the Affine transform of frame $i + 2$ depends on the Affine Transform of frame $i$ to $i + 1$ and the one of frame $i + 1$ to $i + 2$, and each Affine Transform has an associated error within its calculation (number of RANSAC iterations, incapability of removing bad matching candidates, inconsistencies on calculated keypoints). Also, as we use an Affine Transform, it deals with limited number of degrees of freedom, considering the camera movement and frame distortion (the recorded video might insert camera movements that could only be correctly estimated in using a projection transform).
+Considering the fact that we are using the Affine Transform to track the target frame from one video frame to the other, we have accumulated error during execution, as, for example, the Affine transform of frame $i + 2$ depends on the Affine Transform of frame $i$ to $i + 1$ and the one of frame $i + 1$ to $i + 2$, and each Affine Transform has an associated error within its calculation (number of RANSAC iterations, incapability of removing bad matching candidates, inconsistencies on keypoints). Also, as we use an Affine Transform, it deals with limited number of degrees of freedom, considering the camera movement and frame distortion (the recorded video might insert camera movements that could only be correctly estimated in using a projection transform).
 
 \subsection{Tracking the Target comparing to the Artificial Frame}
 
