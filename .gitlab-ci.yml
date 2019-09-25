@@ -51,4 +51,5 @@ report:
     - mv report.pdf ../
   artifacts:
     paths:
+      - output/*
       - report.pdf
