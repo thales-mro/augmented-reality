@@ -11,7 +11,7 @@ stages:
   - build
   - exec_frame
   - exec_source
-#  - report
+  - report
 
 build:
   stage: build
@@ -40,17 +40,17 @@ exec_source:
     paths:
       - output/*
 
-#report:
-#  image: adnrv/texlive:full
-#  stage: report
-#  script:
-#    - ls
-#    - cd report
-#    - latexmk -pdf -pdflatex="pdflatex --shell-escape %O %S" report
-#    # move the file to the root folder
-#    - mv report.pdf ../
-#  artifacts:
-#    paths:
-#      - report.pdf
-#  dependencies:
-#    - exec
+report:
+  image: adnrv/texlive:full
+  stage: report
+  script:
+    - ls
+    - cd report
+    - latexmk -pdf -pdflatex="pdflatex --shell-escape %O %S" report
+    # move the file to the root folder
+    - mv report.pdf ../
+  artifacts:
+    paths:
+      - report.pdf
+  dependencies:
+    - exec
